@@ -35,11 +35,13 @@ Uma regra precisa de ao menos um campo de correspondência. Quando vários são 
 Para testar uma regra temporal, envie uma sequência de eventos normalizados, um objeto JSON por linha, com horários e campos de agrupamento representativos:
 
 ```bash
+# Avalia as regras de detecção com os eventos sintéticos lidos do arquivo JSONL.
 vitaisk rules test - < eventos-sinteticos.jsonl
 ```
 
 Para inspecionar uma correspondência pontual:
 
 ```bash
+# Avalia as regras de detecção com uma mensagem sintética de erro do kernel.
 vitaisk rules test --source kernel 'EXT4-fs error on sda'
 ```
