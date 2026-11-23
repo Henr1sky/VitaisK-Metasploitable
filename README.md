@@ -14,16 +14,22 @@ Esta edição do [VitaisK](https://github.com/Henr1sky/VitaisK) acompanha logs e
 Use uma rede virtual **somente host (host-only)**. Mantenha a VM sem rota padrão, sem ligação em ponte, NAT ou redirecionamento de portas. Confira a chave SSH da VM pelo console antes de registrá-la no Kali. A máquina que executa o painel precisa de Git, Python 3.10 ou superior com suporte a ambientes virtuais, OpenSSH e `ip` do iproute2.
 
 ~~~sh
+# Clona o repositório para uma pasta local.
 git clone https://github.com/Henr1sky/VitaisK-Metasploitable.git
+# Entra na pasta do projeto.
 cd VitaisK-Metasploitable
+# Cria o ambiente virtual Python na pasta .venv.
 python3 -m venv .venv
+# Instala o VitaisK e suas dependências no ambiente virtual.
 .venv/bin/python -m pip install .
 ~~~
 
 Com o Kali e a VM configurados na mesma sub-rede privada, execute primeiro o diagnóstico:
 
 ~~~sh
+# Verifica a conectividade SSH, o estado do sistema de arquivos e a leitura dos logs da VM.
 .venv/bin/vitaisk lab-doctor
+# Abre o painel em português na visão que exibe todos os eventos disponíveis.
 .venv/bin/vitaisk --lang pt watch --metasploitable --view all
 ~~~
 
