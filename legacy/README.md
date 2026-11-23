@@ -7,7 +7,9 @@ O VitaisK pode exibir os eventos da VM no Kali ou no próprio console da VM. Par
 Mantenha o Kali e a VM na mesma rede host-only, com endereços IPv4 privados distintos e acesso direto. A VM deve ficar sem rota padrão. Verifique a chave SSH no console da VM e use a conta autorizada do laboratório. O OpenSSH pede a autenticação no terminal antes de abrir o painel.
 
 ~~~sh
+# Verifica a conectividade SSH, o estado do sistema de arquivos e a leitura dos logs da VM.
 .venv/bin/vitaisk lab-doctor
+# Abre o painel em português na visão que exibe todos os eventos disponíveis.
 .venv/bin/vitaisk --lang pt watch --metasploitable --view all
 ~~~
 
@@ -26,8 +28,11 @@ O coletor Python 2.5 roda na VM pela conexão SSH. O motor processa os eventos n
 O Kali armazena as sessões de acordo com sua configuração. Use `--no-save` para desativar a gravação da sessão atual. A referência estatística é controlada separadamente e mantida por endereço da VM. Os registros da sessão incluem o host de origem em `extra.lab_host`.
 
 ~~~sh
+# Lista as sessões finalizadas armazenadas no Kali.
 .venv/bin/vitaisk sessions list
+# Resume os eventos e alertas da sessão mais recente.
 .venv/bin/vitaisk summary --session latest
+# Exporta a sessão mais recente para o arquivo sessao.csv.
 .venv/bin/vitaisk export --session latest --format csv --output sessao.csv
 ~~~
 
@@ -36,12 +41,14 @@ O Kali armazena as sessões de acordo com sua configuração. Use `--no-save` pa
 Com [vitaisk.py](vitaisk.py) disponível em um diretório gravável na VM, abra um terminal interativo e execute a partir desse diretório:
 
 ~~~sh
+# Abre o painel legado no terminal da própria VM.
 python vitaisk.py watch --mode dashboard
 ~~~
 
 O painel local usa Python 2.5 e o módulo `curses`. Use **1** para sistema, **2** para autenticação, **3** para kernel, **a** para todas as fontes, **p** para pausar a exibição e **q** para sair. Para ler as entradas disponíveis e encerrar, use o modo em texto:
 
 ~~~sh
+# Lê as entradas de autenticação disponíveis e encerra.
 python vitaisk.py watch --source auth --once
 ~~~
 
@@ -66,6 +73,7 @@ python vitaisk.py watch --source auth --once
 No Kali, a partir da raiz do repositório, rode os testes automatizados:
 
 ~~~sh
+# Executa os testes automatizados com saída detalhada.
 .venv/bin/python -m unittest discover -s tests -v
 ~~~
 
