@@ -242,6 +242,27 @@ def config_reset(ctx: click.Context) -> None:
     console.print(f"[green]✓[/] {_('config.reset')} ({path})")
 
 
+def _lab_endpoint(command):
+    command = option("--lab-user", default="msfadmin", show_default=True,
+                     help="VM SSH username.")(command)
+    command = option("--lab-bind", default="192.168.56.102", show_default=True,
+                     help="Kali lab IPv4 address.")(command)
+    return option("--lab-host", default="192.168.56.101", show_default=True,
+                  help="VM IPv4 address.")(command)
+
+
+@cli.command("lab-doctor")
+@_lab_endpoint
+def cmd_lab_doctor(lab_host, lab_bind, lab_user):
+    """Check SSH, disk state and log access for Metasploitable 2."""
+    from .metasploitable import lab_doctor
+
+    try:
+        lab_doctor(lab_host, lab_bind, lab_user)
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
 # ── watch ──────────────────────────────────────────────────────────
 @cli.command("watch")
 @option("--mode", type=click.Choice(["dashboard", "stream"]), default=None,
@@ -263,14 +284,23 @@ def config_reset(ctx: click.Context) -> None:
 @option("--sensitivity", type=click.Choice(["low", "medium", "high"]), default=None)
 @option("--save/--no-save", "save", default=None,
               help="Write the session during monitoring (default from config).")
+@option("--metasploitable", is_flag=True, help="Use the isolated Metasploitable 2 VM over SSH.")
+@_lab_endpoint
 @click.pass_context
-def cmd_watch(ctx: click.Context, **opts) -> None:
+def cmd_watch(ctx: click.Context, metasploitable, lab_host, lab_bind, lab_user, **opts) -> None:
     """Live monitoring. Press Ctrl+C to stop."""
     from .watch import watch
 
     try:
         cfg = _load_config(ctx, ctx.obj["lang"], ctx.obj["config_path"])
-        saved = watch(cfg, console, **opts)
+        if metasploitable:
+            from .metasploitable import lab_manager
+
+            with lab_manager(cfg, lab_host, lab_bind, lab_user) as manager:
+                saved = watch(cfg, console, manager=manager,
+                              baseline_name=f"baseline-lab-{lab_host}.json", **opts)
+        else:
+            saved = watch(cfg, console, **opts)
     except (OSError, ValueError, re.error) as exc:
         raise click.ClickException(str(exc)) from exc
     if saved:
