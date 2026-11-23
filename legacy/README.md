@@ -1,35 +1,85 @@
-# VitaisK no Metasploitable 2
+# VitaisK para Metasploitable 2
 
-Esta edição inicial roda com o Python 2.5.2 do Ubuntu 8.04, sem pacotes externos. Ela acompanha logs locais e identifica mensagens de sucesso e falha do SSH. O painel de terminal roda com curses. Métricas, captura de pacotes e regras da edição principal ainda não estão disponíveis.
+Esta edição usa o Python 2.5.2 do Ubuntu 8.04 para coletar dados na VM. No Kali, o VitaisK reutiliza o painel, as regras, os filtros, as sessões e a exportação da edição principal. Para uso inteiramente local na VM, há também um painel de terminal sem dependências adicionais.
 
-Transfira `legacy/vitaisk.py` pelo SSH da rede isolada e rode na VM:
+## Começar pelo Kali
+
+1. No VirtualBox, conecte o Metasploitable 2 apenas à rede Host-only. A VM fica sem adaptador NAT ou bridge e sem redirecionamento de porta.
+2. Confira a impressão SSH no console da VM antes de aceitar a chave no Kali. Use o IP, a conta e a senha do laboratório. As opções padrão usam a VM em `192.168.56.101`, o Kali em `192.168.56.102` e a conta `msfadmin`.
+3. Na raiz desta cópia do projeto, instale em um ambiente virtual no Kali com Python 3.10 ou superior:
+
+   ```sh
+   python3 -m venv .venv
+   .venv/bin/python -m pip install .
+   ```
+
+4. Rode o diagnóstico e abra o painel:
+
+   ```sh
+   .venv/bin/vitaisk lab-doctor
+   .venv/bin/vitaisk watch --metasploitable --view all
+   ```
+
+O OpenSSH pede a senha diretamente no terminal antes de abrir o painel. O coletor é enviado pela conexão e executado em memória na VM. As opções `--lab-host`, `--lab-bind` e `--lab-user` permitem ajustar o endereço e a conta de outro laboratório. A conexão exige IPv4 privado diretamente alcançável pela interface escolhida, chave SSH já conhecida e VM sem rota padrão ativa. Se a sessão SSH cair, o monitor encerra e avisa. Rode o comando novamente para conectar.
+
+O painel mostra eventos e métricas **da VM**. Use `--source auth` para focar em autenticação, `--only-anomalies` para alertas e `--mode stream` para saída em texto. A tecla `q` fecha o painel. Por padrão, sessões são armazenadas no Kali com permissões privadas. Use `--no-save` para não gravar.
 
 ```sh
-python vitaisk.py watch --mode dashboard
-python vitaisk.py watch
-python vitaisk.py watch --source auth
-python vitaisk.py watch --source system --once
+.venv/bin/vitaisk sessions list
+.venv/bin/vitaisk summary --session latest
+.venv/bin/vitaisk export --session latest --format csv --output sessao.csv
 ```
 
-O painel mostra linhas recentes e eventos novos. Pressione q para sair do painel. O modo de texto acompanha novas linhas a partir do fim dos arquivos. Use Ctrl+C para sair. `--once` lê as linhas existentes e termina. Para testar com um arquivo próprio, combine `--file caminho` com um único `--source`.
+O estado estatístico do laboratório é mantido por endereço da VM, separado do monitor local. Os registros das sessões identificam a origem em `extra.lab_host`.
 
-| Fonte | Caminho |
+## Painel dentro da VM
+
+No Kali, a partir da raiz do repositório, envie o script pela rede isolada. A cópia em memória dura até a VM reiniciar:
+
+```sh
+ssh -b 192.168.56.102 -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=+ssh-rsa \
+  msfadmin@192.168.56.101 'umask 077; d=$(mktemp -d /dev/shm/vitaisk.XXXXXX) && cat > "$d/vitaisk.py" && echo "$d/vitaisk.py"' < legacy/vitaisk.py
+```
+
+Na sessão SSH da VM, use o caminho que o comando imprimiu:
+
+```sh
+python /dev/shm/vitaisk.EXEMPLO/vitaisk.py watch --mode dashboard
+python /dev/shm/vitaisk.EXEMPLO/vitaisk.py watch --source auth --once
+```
+
+O painel mostra linhas recentes, CPU, RAM e uso de disco. Use `1` para sistema, `2` para autenticação, `3` para kernel, `a` para todas as fontes, `p` para pausar a exibição e `q` para sair. `--once` lê o histórico e termina. Se seu terminal não for reconhecido, acrescente `TERM=xterm` antes de `python`.
+
+## Cobertura e limites
+
+| Recurso | Execução |
 | --- | --- |
-| `system` | `/var/log/syslog` ou `/var/log/messages` |
-| `auth` | `/var/log/auth.log` |
-| `kernel` | `/var/log/kern.log` |
+| Painel, histórico recente, filtros por fonte e métricas básicas | Na VM, com Python 2.5 |
+| Syslog, autenticação, kernel, firewall e auditd | Pelos arquivos legíveis na VM. Firewall e auditd dependem de arquivos configurados e disponíveis. |
+| CPU, RAM, disco, carga, contagem de processos e novas conexões IPv4 | Amostrados na VM sem privilégios adicionais e analisados no Kali |
+| Regras, correlação, linha de base, sessões e exportação | Pelo motor VitaisK no Kali |
+| Captura PCAP | Pelo VitaisK no Kali, na interface isolada, com tcpdump e permissões para captura |
 
-O processo usa as permissões do usuário que o executa.
-
-## Testes na VM
-
-Em 23 de novembro de 2026, a execução no Python 2.5.2 da VM leu 4.112 linhas do syslog, 107 de auth.log e 2.839 de kern.log. Em um arquivo temporário, o modo ao vivo classificou um login SSH simulado e uma falha simulada após a rotação do arquivo. A emissão de uma mensagem real com `logger` em um teste anterior não chegou aos arquivos esperados, então a coleta de novas mensagens do daemon de syslog ainda está pendente de verificação.
-
-A tentativa de gravar no diretório pessoal retornou erro de sistema de arquivos somente para leitura. A VM aceita execução em memória. Para repetir o teste diretamente pelo Kali, entre no diretório que contém a pasta `legacy` e envie o script pela entrada do Python remoto:
+Para capturar somente o tráfego da VM que passar pela interface do Kali, execute com as permissões locais necessárias:
 
 ```sh
-ssh -T -b 192.168.56.102 -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=+ssh-rsa \
-  msfadmin@192.168.56.101 'python - watch --source auth' < legacy/vitaisk.py
+sudo .venv/bin/vitaisk capture --interface eth1 --filter 'host 192.168.56.101' --duration 30s
 ```
 
-O painel foi verificado no Python 2.5.2 com um terminal interativo na VM. O teste confirmou o histórico inicial, a atualização após uma nova linha e o aviso de disco somente para leitura.
+A captura na interface do Kali cobre os pacotes visíveis nela. O coletor de conexões é amostrado a cada dois segundos e pode perder conexões curtas. Logs do journal e captura nativa de todos os pacotes da VM ficam fora desta edição.
+
+## Estado deste laboratório
+
+O kernel do Metasploitable 2 encontrou erros no sistema de arquivos ext3, abortou o journal e remontou a raiz como somente leitura. O VitaisK ainda lê os logs antigos, mostra as métricas vivas e detecta novas linhas em arquivos de teste em memória. Os arquivos reais em `/var/log` só voltam a receber eventos depois que a VM puder gravar no disco.
+
+Preserve uma cópia do disco virtual no host antes de mexer no sistema de arquivos. Verifique o ext3 com a VM desligada e o sistema de arquivos desmontado. Nenhuma recuperação de disco faz parte da instalação do VitaisK.
+
+## Testes
+
+No Kali:
+
+```sh
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+Na VM de 32 bits, valide com `lab-doctor` e o painel nativo. A VM deste laboratório usa kernel 2.6.24, glibc 2.7 e Python 2.5.2.
