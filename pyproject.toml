@@ -42,11 +42,11 @@ dev  = ["pytest>=7", "pytest-cov", "ruff", "mypy", "build", "twine"]
 vitaisk = "vitaisk.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/Henr1sky/VitaisK"
-Issues   = "https://github.com/Henr1sky/VitaisK/issues"
+Homepage = "https://github.com/Henr1sky/VitaisK-Metasploitable"
+Issues   = "https://github.com/Henr1sky/VitaisK-Metasploitable/issues"
 
 [tool.setuptools.packages.find]
-include = ["vitaisk*"]
+include = ["vitaisk*", "legacy"]
 
 [tool.setuptools.package-data]
 vitaisk = ["rules/*.yaml"]
