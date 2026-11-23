@@ -81,19 +81,20 @@ def _keyboard():
 
 
 def watch(config, console, *, mode, view, only_anomalies, min_level, sources, grep, ip,
-          ignore, sensitivity, save, profile):
+          ignore, sensitivity, save, profile, manager=None, baseline_name="baseline.json"):
     if profile is not None and profile not in config.profiles:
         raise ValueError(label("Unknown profile", "Perfil desconhecido") + f": {profile}")
     filters = ViewFilter.for_profile(
         config, profile, view="anomalies" if only_anomalies else view, min_level=min_level,
         sources=sources, grep=grep, ip=ip, ignore=ignore,
     )
-    manager = CollectorManager(config)
+    if manager is None:
+        manager = CollectorManager(config)
     baseline = None
     if config.baseline_enabled:
         try:
             baseline = ErrorRates(config.baseline_window, config.anomaly_z_threshold,
-                                  config.max_events_in_memory, load_baseline(config))
+                                  config.max_events_in_memory, load_baseline(config, baseline_name))
         except (OSError, KeyError, TypeError, ValueError):
             baseline = ErrorRates(config.baseline_window, config.anomaly_z_threshold,
                                   config.max_events_in_memory)
@@ -144,7 +145,7 @@ def watch(config, console, *, mode, view, only_anomalies, min_level, sources, gr
     try:
         with keyboard as read_keys, live_view as live:
             manager.start()
-            while not stop_requested:
+            while not stop_requested and not manager.stop_event.is_set():
                 event = manager.queue.get(timeout=0.1)
                 now = time.monotonic()
                 elapsed = int(now - last_tick)
@@ -185,7 +186,7 @@ def watch(config, console, *, mode, view, only_anomalies, min_level, sources, gr
                     saved = writer.close() or saved
                 if baseline is not None and baseline.rates:
                     try:
-                        save_baseline(config, baseline)
+                        save_baseline(config, baseline, baseline_name)
                     except OSError as exc:
                         eprint(label("Baseline could not be saved", "Falha ao gravar a referência estatística"), exc)
             finally:

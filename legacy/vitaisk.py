@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Local log monitor for Metasploitable 2 (Python 2.5)."""
 
+import base64
 import os
 import re
 import sys
@@ -14,6 +15,13 @@ LOG_PATHS = {
     "kernel": ("/var/log/kern.log",),
 }
 SOURCES = ("system", "auth", "kernel")
+BRIDGE_PATHS = (
+    ("system", LOG_PATHS["system"]),
+    ("auth", LOG_PATHS["auth"]),
+    ("kernel", LOG_PATHS["kernel"]),
+    ("firewall", ("/var/log/ufw.log", "/var/log/firewall.log")),
+    ("audit", ("/var/log/audit/audit.log",)),
+)
 SYSLOG = re.compile(r"^(\w{3}\s+\d+\s+\d\d:\d\d:\d\d)\s+(\S+)\s+(\S+?):\s+(.*)$")
 SSH_LOGIN = re.compile(r"^Accepted (password|publickey|keyboard-interactive/pam) for ")
 SSH_FAILURE = re.compile(r"^(Failed password for |Invalid user )")
@@ -95,33 +103,66 @@ def root_read_only():
 def dashboard(screen, paths_by_source, curses):
     events = []
     screen.timeout(250)
-    read_only = root_read_only()
+    health = [0, False, None, ""]
+    selected = [None]
+    paused = [None]
 
     def emit(source, line):
-        events.append(format_event(source, line))
+        events.append((source, format_event(source, line)))
         if len(events) > 200:
             del events[0]
 
     def draw(logs):
         height, width = screen.getmaxyx()
         screen.erase()
+        now = time.time()
+        if now >= health[0]:
+            health[0] = now + 2
+            health[1] = root_read_only()
+            try:
+                total, idle, ram_total, ram_used, disk_used, disk_total = sample_vitals()[:6]
+                previous = health[2]
+                health[2] = (total, idle)
+                cpu = "--"
+                if previous and total > previous[0]:
+                    used = total - previous[0] - idle + previous[1]
+                    cpu = "%.0f%%" % (100.0 * used / (total - previous[0]))
+                health[3] = "CPU %s | RAM %.0f%% | Disk %.0f%%" % (
+                    cpu, 100.0 * ram_used / ram_total, 100.0 * disk_used / disk_total,
+                )
+            except (IOError, OSError, ValueError, ZeroDivisionError):
+                health[3] = "Metrics unavailable"
         status = "Sources: " + ", ".join(sorted(logs))
-        if read_only:
+        if health[1]:
             status += " | Root is read-only"
-        rows = ["VitaisK | Live logs | q to quit", status]
+        activity = "Paused" if paused[0] is not None else "Live"
+        view = selected[0] or "all"
+        rows = ["VitaisK | %s logs | q to quit" % activity, status, health[3],
+                "View: %s | a all, 1 system, 2 auth, 3 kernel, p pause" % view]
         available = max(0, height - len(rows))
         if available:
-            rows.extend(events[-available:])
+            visible = paused[0] if paused[0] is not None else events
+            matching = [line for source, line in visible
+                        if selected[0] is None or source == selected[0]]
+            rows.extend(matching[-available:])
         for row, text in enumerate(rows[:height]):
             if width > 1:
                 screen.addnstr(row, 0, text, width - 1)
         screen.refresh()
-        return screen.getch() not in (ord("q"), ord("Q"))
+        key = screen.getch()
+        if key == ord("p"):
+            paused[0] = list(events) if paused[0] is None else None
+        if key == ord("a"):
+            selected[0] = None
+        elif key in (ord("1"), ord("2"), ord("3")):
+            selected[0] = SOURCES[key - ord("1")]
+        return key not in (ord("q"), ord("Q"))
 
-    return watch(paths_by_source, False, emit, draw)
+    return watch(paths_by_source, False, emit, draw, history=True)
 
 
-def watch(paths_by_source, once, emit=show_event, refresh=None):
+def watch(paths_by_source, once, emit=show_event, refresh=None,
+          history=False, allow_empty=False):
     logs = {}
     try:
         while True:
@@ -130,7 +171,7 @@ def watch(paths_by_source, once, emit=show_event, refresh=None):
                     path, handle = open_log(paths)
                     if handle is None:
                         continue
-                    if refresh:
+                    if history:
                         read_history(handle, source, emit)
                     elif not once:
                         handle.seek(0, 2)
@@ -158,7 +199,7 @@ def watch(paths_by_source, once, emit=show_event, refresh=None):
                 elif current.st_size < handle.tell():
                     handle.seek(0)
 
-            if not logs:
+            if not logs and not allow_empty:
                 sys.stderr.write("No readable log files found.\n")
                 return 1
             if once:
@@ -173,8 +214,165 @@ def watch(paths_by_source, once, emit=show_event, refresh=None):
             handle.close()
 
 
+def proc_lines(path):
+    handle = open(path)
+    try:
+        # The bridge only reads fixed kernel files.
+        return handle.readlines()
+    finally:
+        handle.close()
+
+
+def check_vm_route():
+    for line in proc_lines("/proc/net/route")[1:]:
+        fields = line.split()
+        if fields[1] == "00000000" and fields[7] == "00000000" and int(fields[3], 16) & 1:
+            raise ValueError("VM has an IPv4 default route")
+    if os.path.exists("/proc/net/ipv6_route"):
+        for line in proc_lines("/proc/net/ipv6_route"):
+            fields = line.split()
+            if fields[0] == "0" * 32 and fields[1] == "00" and int(fields[8], 16) & 1:
+                raise ValueError("VM has an IPv6 default route")
+
+
+def send_record(*fields):
+    sys.stdout.write("\t".join(str(field) for field in fields) + "\n")
+    sys.stdout.flush()
+
+
+def log_timestamp(line):
+    match = SYSLOG.match(line)
+    now = time.time()
+    if match:
+        try:
+            date = "%d %s" % (time.localtime(now)[0], match.group(1))
+            timestamp = time.mktime(time.strptime(date, "%Y %b %d %H:%M:%S"))
+            if timestamp > now + 86400:
+                date = "%d %s" % (time.localtime(now)[0] - 1, match.group(1))
+                timestamp = time.mktime(time.strptime(date, "%Y %b %d %H:%M:%S"))
+            return int(timestamp)
+        except (ValueError, OverflowError):
+            pass
+    return int(now)
+
+
+def send_log(source, line):
+    timestamp = log_timestamp(line)
+    line = line.rstrip("\r\n")[:8192]
+    if not isinstance(line, bytes_type):
+        line = line.encode("utf-8", "replace")
+    encoded = base64.b64encode(line)
+    if not isinstance(encoded, str):
+        encoded = encoded.decode("ascii")
+    send_record("log", source, timestamp, encoded)
+
+
+try:
+    bytes_type = bytes
+except NameError:
+    bytes_type = str
+
+
+def sample_vitals():
+    stats = proc_lines("/proc/stat")
+    cpu_count = len([line for line in stats if re.match(r"^cpu[0-9]", line)])
+    stat = stats[0].split()[1:9]
+    ticks = [int(value) for value in stat]
+    idle = sum(ticks[3:5])
+    memory = {}
+    for line in proc_lines("/proc/meminfo"):
+        fields = line.split()
+        if len(fields) >= 2:
+            memory[fields[0].rstrip(":")] = int(fields[1])
+    total = memory["MemTotal"]
+    available = memory.get("MemAvailable", memory["MemFree"] + memory.get("Buffers", 0)
+                           + memory.get("Cached", 0) + memory.get("SReclaimable", 0))
+    disk = os.statvfs("/")
+    used = disk.f_blocks - disk.f_bfree
+    processes = len([entry for entry in os.listdir("/proc") if entry.isdigit()])
+    return (sum(ticks), idle, total, max(0, total - available), used, used + disk.f_bavail,
+            int(os.getloadavg()[0] * 100), cpu_count, processes)
+
+
+def ipv4_connections():
+    rows = set()
+    for protocol, path in (("tcp", "/proc/net/tcp"), ("udp", "/proc/net/udp")):
+        try:
+            lines = proc_lines(path)
+        except IOError:
+            continue
+        for line in lines[1:]:
+            fields = line.split()
+            if len(fields) < 4:
+                continue
+            state = fields[3]
+            if protocol == "tcp" and state not in ("01", "02", "03"):
+                continue
+            if fields[2] == "00000000:0000":
+                continue
+            rows.add((protocol, fields[1], fields[2]))
+    return rows
+
+
+def bridge(paths=BRIDGE_PATHS):
+    try:
+        check_vm_route()
+        send_record("hello", 1)
+        next_sample = [0.0]
+        known = [None]
+
+        def publish(logs):
+            now = time.time()
+            if now < next_sample[0]:
+                time.sleep(0.25)
+                return True
+            check_vm_route()
+            availability = ",".join(sorted(logs))
+            send_record("status", int(root_read_only()), availability)
+            send_record("metrics", *sample_vitals())
+            connections = ipv4_connections()
+            if known[0] is not None:
+                for row in sorted(connections - known[0]):
+                    send_record("connection", "new", *row)
+                for row in sorted(known[0] - connections):
+                    send_record("connection", "closed", *row)
+            known[0] = connections
+            next_sample[0] = now + 2.0
+            return True
+
+        return watch(paths, False, send_log, publish, allow_empty=True)
+    except (IOError, OSError, ValueError):
+        error = sys.exc_info()[1]
+        if getattr(error, "errno", None) == 32:  # SSH closed its pipe.
+            return 0
+        sys.stderr.write("VM collector: %s\n" % error)
+        return 1
+
+
+def doctor():
+    sys.stdout.write("Python %s | %s %s\n" % (
+        sys.version.split()[0], os.uname()[2], os.uname()[4],
+    ))
+    sys.stdout.write("Root filesystem: %s\n" % ("read-only" if root_read_only() else "read-write"))
+    try:
+        check_vm_route()
+        sys.stdout.write("Network: no default route\n")
+    except (IOError, OSError, ValueError):
+        sys.stdout.write("Network: %s\n" % sys.exc_info()[1])
+    for source, paths in BRIDGE_PATHS:
+        path, handle = open_log(paths)
+        if handle:
+            handle.close()
+        sys.stdout.write("%s: %s\n" % (source, path or "not readable"))
+    return 0
+
+
 def main():
-    parser = OptionParser(usage="%prog watch [options]")
+    if sys.argv[1:] == ["doctor"]:
+        return doctor()
+    if sys.argv[1:] == ["bridge"]:
+        return bridge()
+    parser = OptionParser(usage="%prog watch [options] | doctor")
     parser.add_option("--source", action="append", type="choice",
                       choices=SOURCES, help="Log source: system, auth or kernel (repeatable)")
     parser.add_option("--file", help="Read a specific log file instead of the default path")
@@ -206,6 +404,9 @@ def main():
         except ImportError:
             parser.error("dashboard requires Python curses")
         try:
+            terminal = os.environ.get("TERM")
+            if terminal == "xterm-256color":
+                os.environ["TERM"] = "xterm"
             return curses.wrapper(dashboard, paths_by_source, curses)
         except KeyboardInterrupt:
             return 0
@@ -215,6 +416,11 @@ def main():
         except IOError:
             sys.stderr.write("Could not read or display the log.\n")
             return 1
+    if not options.once and sys.stderr.isatty():
+        status = "Waiting for new log entries."
+        if root_read_only():
+            status += " Root is read-only; system logs may stop updating."
+        sys.stderr.write(status + "\n")
     try:
         return watch(paths_by_source, options.once)
     except KeyboardInterrupt:

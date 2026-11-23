@@ -21,10 +21,10 @@ Use Linux com **Python 3.10 ou superior**, `pip` e suporte a `venv`. Em distribu
 
 ```bash
 # Baixa o código do VitaisK do GitHub para uma pasta local.
-git clone https://github.com/Henr1sky/VitaisK.git
+git clone https://github.com/Henr1sky/VitaisK-Metasploitable.git
 
 # Entra na pasta do projeto recém-clonado.
-cd VitaisK
+cd VitaisK-Metasploitable
 
 # Cria um ambiente virtual Python para isolar as dependências do projeto.
 python3 -m venv .venv
@@ -223,3 +223,7 @@ Essas escolhas permitem usar a mesma ferramenta em diferentes distribuições Li
 - [Referência de regras e correlações](docs/rules.md)
 - [Como contribuir](CONTRIBUTING.md)
 - [Licença MIT](LICENSE)
+
+## Metasploitable 2
+
+Este repositório inclui uma edição para monitorar o Metasploitable 2 pela rede isolada. Veja [instalação, painel e testes do laboratório](legacy/README.md).
