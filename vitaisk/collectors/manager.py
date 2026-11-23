@@ -12,12 +12,14 @@ from .base import Collector, EventQueue
 class CollectorManager:
     """Builds collectors from config, runs them in threads, exposes one event stream."""
 
-    def __init__(self, config, queue: Optional[EventQueue] = None):
+    def __init__(self, config, queue: Optional[EventQueue] = None, *, build=None):
         from . import build_collectors  # local import avoids circular import
         self.config = config
         self.queue = queue or EventQueue(maxsize=config.max_events_in_memory)
         self.stop_event = threading.Event()
-        self.collectors: list[Collector] = build_collectors(config, self.queue, self.stop_event)
+        self.collectors: list[Collector] = (build or build_collectors)(
+            config, self.queue, self.stop_event,
+        )
 
     # ── lifecycle ──────────────────────────────────────────────
     def start(self) -> None:
