@@ -61,6 +61,14 @@
   source: auth
   category: user_removed
   severity: WARN
+- id: lab-possible-port-scan
+  source: network
+  category: [syn, udp_datagram]
+  group_by: [extra.lab_host, src_ip, dst_ip, protocol]
+  distinct: dst_port
+  threshold: 6
+  window: 30
+  severity: WARN
 - id: tcp-syn-many-ports
   source: network
   category: syn
