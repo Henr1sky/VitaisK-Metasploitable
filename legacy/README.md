@@ -4,7 +4,7 @@ Esta edição usa o Python 2.5.2 do Ubuntu 8.04 para coletar dados na VM. No Kal
 
 ## Começar pelo Kali
 
-1. No VirtualBox, conecte o Metasploitable 2 apenas à rede Host-only. A VM fica sem adaptador NAT ou bridge e sem redirecionamento de porta.
+1. No VirtualBox, conecte o Metasploitable 2 apenas a uma rede interna ou Host-only compartilhada com o Kali. A VM fica sem adaptador NAT ou bridge e sem redirecionamento de porta.
 2. Confira a impressão SSH no console da VM antes de aceitar a chave no Kali. Use o IP, a conta e a senha do laboratório. As opções padrão usam a VM em `192.168.56.101`, o Kali em `192.168.56.102` e a conta `msfadmin`.
 3. Na raiz desta cópia do projeto, instale em um ambiente virtual no Kali com Python 3.10 ou superior:
 
@@ -31,13 +31,16 @@ O estado estatístico do laboratório é mantido por endereço da VM, separado d
 No Kali, ative o coletor de pacotes da VM quando quiser observar tentativas de conexão TCP, inclusive quando `/var/log` estiver parado:
 
 ```sh
-# Mostre tentativas TCP do Kali para a VM na rede isolada.
+# Mostre tentativas TCP recebidas pela VM na rede isolada.
 .venv/bin/vitaisk --lang pt watch --metasploitable --lab-packets --mode dashboard --view all
 ```
 
-O monitor pede a senha para `sudo` na VM e usa o `tcpdump` que já está instalado nela. Ele produz eventos com os endereços e as portas dos pacotes SYN enviados do Kali para a VM. Doze portas de destino distintas em até dez segundos geram o alerta `tcp-syn-many-ports`. A opção acompanha apenas novas tentativas TCP desse par de endereços e independe da gravação em `/var/log`.
+O monitor pede a senha para `sudo` na VM e usa o `tcpdump` que já está instalado nela. Ele produz eventos com os endereços e as portas dos pacotes SYN IPv4 recebidos no endereço da VM, inclusive de outros participantes da rede isolada. Doze portas de destino distintas em até dez segundos geram o alerta `tcp-syn-many-ports`. A opção registra metadados dos SYN de entrada e agrupa alertas por IP de origem e independe da gravação em `/var/log`.
 
-### Correlações no laboratório
+### Tentativas de acesso e correlações
+
+Uma falha de senha, chave pública ou usuário inválido no SSH gera o alerta `lab-ssh-access-denied` em nível `WARN`. Abra **Anomalias** no painel para ver o alerta, o IP de origem e a mensagem de autenticação. Cinco falhas de senha da mesma origem em até um minuto geram `ssh-brute-force` em nível `CRITICAL`. Um SYN isolado indica uma tentativa de conexão TCP e aparece como `INFO` na visão **Todos**.
+
 
 | Regra | Evidência que precisa chegar ao VitaisK |
 | --- | --- |
@@ -45,13 +48,26 @@ O monitor pede a senha para `sudo` na VM e usa o `tcpdump` que já está instala
 | `inbound-scan-then-ssh-fail` | Bloqueios TCP a portas distintas no firewall, seguidos de falha de SSH da mesma origem e no mesmo host. |
 | `tcp-syn-many-ports-then-ssh-fail` | Tentativas TCP em várias portas da VM, seguidas de falha de SSH para o mesmo par de endereços. Use `--lab-packets` para alimentar essa regra. |
 
-O coletor lê os arquivos no Metasploitable 2. Bloqueios do firewall podem chegar pelo `kern.log` mesmo sem um arquivo exclusivo de firewall. A captura passiva é uma fonte separada e observa os SYN IPv4 do Kali para a VM. O SSH transporta os dados e o motor no Kali aplica as regras. No painel, pressione `3` para abrir **Anomalias** e `Enter` para ver as fontes e a contagem da correlação.
+O coletor lê os arquivos no Metasploitable 2. Bloqueios do firewall podem chegar pelo `kern.log` mesmo sem um arquivo exclusivo de firewall. A captura passiva é uma fonte separada e observa os SYN IPv4 recebidos no endereço da VM. O SSH transporta os dados e o motor no Kali aplica as regras. No painel, pressione `3` para abrir **Anomalias** e `Enter` para ver as fontes e a contagem da correlação.
 
-Os testes de detecção reproduzem registros sintéticos. Execute no Kali:
+O motor também avalia o catálogo de correlações do VitaisK original. Cada regra depende da chegada de suas fontes. A VM oferece autenticação, syslog, kernel, métricas e conexões. Firewall e auditd dependem de logs disponíveis e legíveis. Regras que dependem de telemetria estruturada ou classificação externa podem receber eventos de um produtor confiável no Kali por `--signal-file`. Consulte o formato no [VitaisK original](https://github.com/Henr1sky/VitaisK/blob/main/docs/telemetry.md).
 
 ```sh
-# Valide cada regra incluída e os cenários de correlação.
-.venv/bin/python -m unittest discover -s tests -p 'test_lab_rules.py' -v
+# Abra o painel com o monitor TCP da VM e grave a sessão no Kali.
+.venv/bin/vitaisk --lang pt watch --metasploitable --lab-packets --view all --save
+
+# Liste as correlações e a telemetria que cada uma exige.
+.venv/bin/vitaisk rules correlations
+
+# Consulte o resumo da sessão concluída mais recente.
+.venv/bin/vitaisk summary --session latest
+```
+
+Os testes reproduzem falhas de autenticação, múltiplas portas, correlação e persistência com registros sintéticos. Execute no Kali:
+
+```sh
+# Valide o catálogo e as sequências de detecção, incluindo as do laboratório.
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
 ## Painel dentro da VM
@@ -126,7 +142,7 @@ A captura na interface do Kali cobre os pacotes visíveis nela. O coletor de con
 
 ## Estado deste laboratório
 
-O kernel do Metasploitable 2 encontrou erros no sistema de arquivos ext3, abortou o journal e remontou a raiz como somente leitura. O VitaisK ainda lê os logs antigos, mostra as métricas vivas e detecta novas linhas em arquivos de teste em memória. Os arquivos reais em `/var/log` só voltam a receber eventos depois que a VM puder gravar no disco.
+Se a raiz ext3 aparecer como somente leitura no painel ou no `lab-doctor`, verifique o estado do disco da VM. Uma raiz somente leitura pode interromper a gravação dos logs em `/var/log`. O monitor passivo de TCP e as métricas continuam disponíveis enquanto a VM e a rede estiverem funcionando.
 
 Preserve uma cópia do disco virtual no host antes de mexer no sistema de arquivos. Verifique o ext3 com a VM desligada e o sistema de arquivos desmontado. Nenhuma recuperação de disco faz parte da instalação do VitaisK.
 
