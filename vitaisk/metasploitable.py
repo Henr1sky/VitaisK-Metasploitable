@@ -200,6 +200,8 @@ class MetasploitableCollector(MetricsCollector):
             event = parser._handle_line(_CONTROL.sub("?", raw))
             if event:
                 event.ts = int(timestamp)
+                if event.source == "auth" and event.category in ("ssh_failed", "ssh_login"):
+                    event.dst_ip = event.dst_ip or self.host
                 event.extra.setdefault("collector", parser.name)
                 self.emit(event)
         elif kind == "connection":
