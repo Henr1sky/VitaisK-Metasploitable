@@ -9,7 +9,9 @@ from legacy import vitaisk as guest
 from vitaisk.collectors.base import EventQueue
 from vitaisk.config import Config
 from vitaisk.events import Severity
-from vitaisk.metasploitable import MetasploitableCollector, lab_interface
+from vitaisk.engine.pipeline import Pipeline
+from vitaisk.metasploitable import LabPacketCollector, MetasploitableCollector, lab_interface
+from vitaisk.rules.loader import load_rules
 
 
 class MetasploitableTests(unittest.TestCase):
@@ -52,6 +54,21 @@ class MetasploitableTests(unittest.TestCase):
             query.return_value = json.dumps([{"dev": "eth0", "gateway": "192.168.56.1"}])
             with self.assertRaises(ValueError):
                 lab_interface("192.168.56.101", "192.168.56.102")
+
+    def test_passive_syn_rule_counts_distinct_guest_ports(self):
+        collector = LabPacketCollector(
+            self.queue, Config(), None, [], "192.168.56.101", "192.168.56.102", bytearray(),
+        )
+        pipeline = Pipeline(load_rules())
+        self.assertIsNone(collector._parse("1700000000.01 IP 192.0.2.1.33333 > 192.168.56.101.22: S"))
+        old_format = "1700000000.01 IP 192.168.56.102.33333 > 192.168.56.101.22: S"
+        for _ in range(15):
+            self.assertFalse(list(pipeline.process(collector._parse(old_format))))
+        alerts = []
+        for port in range(1000, 1011):
+            record = f"1700000001.01 IP 192.168.56.102.33333 > 192.168.56.101.{port}: Flags [S]"
+            alerts.extend(pipeline.process(collector._parse(record)))
+        self.assertEqual([alert.rule_id for alert in alerts], ["tcp-syn-many-ports"])
 
     def test_guest_history_leaves_partial_line_for_live_updates(self):
         with TemporaryDirectory() as tmp:
