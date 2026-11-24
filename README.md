@@ -99,6 +99,17 @@ python3 -m venv .venv
 
 Para endereços ou usuários diferentes, use `--lab-host`, `--lab-bind` e `--lab-user`, tanto no diagnóstico quanto no monitor. O monitor executa o coletor em memória na VM e usa **uma conexão SSH** para transportar as fontes disponíveis. Por isso, o painel pode mostrar um coletor ativo mesmo recebendo dados de várias fontes.
 
+### Atividade TCP ao vivo
+
+No Kali, ative o coletor de pacotes da VM quando quiser observar tentativas de conexão TCP, inclusive quando `/var/log` estiver parado:
+
+```sh
+# Mostre tentativas TCP do Kali para a VM na rede isolada.
+.venv/bin/vitaisk --lang pt watch --metasploitable --lab-packets --mode dashboard --view all
+```
+
+O monitor pede a senha para `sudo` na VM e usa o `tcpdump` que já está instalado nela. Ele produz eventos com os endereços e as portas dos pacotes SYN enviados do Kali para a VM. Doze portas de destino distintas em até dez segundos geram o alerta `tcp-syn-many-ports`. A opção acompanha apenas novas tentativas TCP desse par de endereços e independe da gravação em `/var/log`.
+
 ## Onde os logs ficam salvos
 
 | Modo | Local |
