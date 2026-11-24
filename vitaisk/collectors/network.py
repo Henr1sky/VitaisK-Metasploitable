@@ -5,6 +5,7 @@ import os
 import re
 import signal
 import subprocess
+from socket import gethostname
 import time
 from typing import Optional
 
@@ -53,6 +54,7 @@ class ConnectionsCollector(Collector):
     def __init__(self, queue: EventQueue, config, stop_event=None):
         super().__init__(queue, config, stop_event)
         self.interval = 5.0
+        self.host = gethostname()
         self._known: set[tuple] = set()
 
     def _run(self) -> None:
@@ -78,8 +80,14 @@ class ConnectionsCollector(Collector):
         current = self._snapshot()
         new = current - self._known
         closed = self._known - current
-        for row in new:
-            self._emit(row, "new_connection")
+        known_endpoints = {(proto, local, peer) for proto, _, local, peer, _, _ in self._known}
+        seen = set()
+        for row in sorted(new):
+            proto, _, local, peer, _, _ = row
+            endpoint = (proto, local, peer)
+            first_seen = endpoint not in known_endpoints and endpoint not in seen
+            self._emit(row, "new_connection", first_seen=first_seen)
+            seen.add(endpoint)
         for row in closed:
             self._emit(row, "closed_connection", severity="DEBUG")
         self._known = current
@@ -115,7 +123,7 @@ class ConnectionsCollector(Collector):
             rows.add((proto, state, local, peer, proc_name, proc_pid))
         return rows
 
-    def _emit(self, row: tuple, category: str, severity: str = "INFO") -> None:
+    def _emit(self, row: tuple, category: str, severity: str = "INFO", *, first_seen=False) -> None:
         proto, state, local, peer, proc_name, proc_pid = row
         l_ip, l_port = _split_addr(local)
         p_ip, p_port = _split_addr(peer)
@@ -137,6 +145,7 @@ class ConnectionsCollector(Collector):
                 f"{proto.upper()} {state} {local} → {peer}"
                 + (f" ({proc_name}/{proc_pid})" if proc_name else "")
             ),
+            host=self.host,
             src_ip=p_ip,
             dst_ip=l_ip,
             dst_port=l_port,
@@ -146,6 +155,7 @@ class ConnectionsCollector(Collector):
                 "local_ip": l_ip, "local_port": l_port,
                 "state": state, "process": proc_name, "pid": proc_pid,
                 "external": bool(is_external),
+                "first_seen": first_seen,
             },
         ))
 
@@ -168,6 +178,7 @@ class SniffCollector(Collector):
         super().__init__(queue, config, stop_event)
         self.interface = getattr(config, "network_sniff_interface", "any")
         self.bpf = getattr(config, "network_sniff_filter", "tcp or udp or icmp")
+        self.host = gethostname()
         self.sample_rate = max(1, int(getattr(config, "network_sniff_sample_rate", 10)))
         self._proc: Optional[subprocess.Popen] = None
         self._counter = 0
@@ -241,7 +252,7 @@ class SniffCollector(Collector):
 
     def _parse(self, line: str) -> Optional[Event]:
         m = _RE_TCPDUMP_SYN.match(line.strip())
-        if not m:
+        if not m or "S" not in m["flags"] or "." in m["flags"]:
             return None
         try:
             ts = time.mktime(time.strptime(m.group("ts")[:19], "%Y-%m-%d %H:%M:%S"))
@@ -266,6 +277,8 @@ class SniffCollector(Collector):
             severity=sev,
             message=f"SYN {src_ip}:{sport} → {dst_ip}:{dport}",
             ts=ts,
+            host=self.host,
+            raw=line.rstrip("\n"),
             src_ip=src_ip,
             dst_ip=dst_ip,
             dst_port=dport,

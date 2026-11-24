@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from socket import gethostname
 from typing import Optional
 
 from ..events import Event, Severity
@@ -53,6 +54,7 @@ class AuditCollector(Collector):
     def __init__(self, queue: EventQueue, config, path: Optional[Path] = None, stop_event=None):
         super().__init__(queue, config, stop_event)
         self.path = Path(path or getattr(config, "audit_log_path", DEFAULT_AUDIT_LOG))
+        self.host = gethostname()
         self._pending: dict[str, dict] = {}  # audit_id → accumulated record
         self._pending_max = 1000
 
@@ -119,8 +121,10 @@ class AuditCollector(Collector):
             severity=severity,
             message=" ".join(message_parts)[:2000],
             raw=line,
+            host=self.host,
             user=user,
-            extra={"audit_id": audit_id, "type": rtype, **kv},
+            extra={"audit_id": audit_id, "type": rtype,
+                   **{name: self._unquote(value) for name, value in kv.items()}},
         )
 
     # ── helpers ────────────────────────────────────────────────

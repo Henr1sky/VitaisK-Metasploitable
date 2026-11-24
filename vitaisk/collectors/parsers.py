@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from ipaddress import ip_address
 from datetime import datetime
 from typing import Any, Optional
 
@@ -49,11 +50,14 @@ def parse_syslog_ts(ts_raw: str, now: Optional[datetime] = None) -> float:
 
 
 # ── auth / sshd / sudo ─────────────────────────────────────────────
-_RE_SSH_FAIL = re.compile(r"Failed password for (?:invalid user )?(?P<user>\S+) from (?P<ip>[\d.]+)")
-_RE_SSH_INVALID = re.compile(r"Invalid user (?P<user>\S+) from (?P<ip>[\d.]+)")
-_RE_SSH_OK = re.compile(r"Accepted (?:password|publickey|keyboard-interactive/pam) for (?P<user>\S+) from (?P<ip>[\d.]+)")
-_RE_SSH_CLOSED = re.compile(r"Connection closed by (?:invalid user \S+ )?(?P<ip>[\d.]+)")
-_RE_SSH_DISCONNECT = re.compile(r"Disconnected from (?:invalid user \S+ )?(?:authenticating user \S+ )?(?P<ip>[\d.]+)")
+_RE_SSH_FAIL = re.compile(r"Failed password for (?:invalid user )?(?P<user>\S+) from (?P<ip>[\da-fA-F:.]+)(?=\s|$)")
+_RE_SSH_KEY_FAIL = re.compile(
+    r"Failed publickey for (?:invalid user )?(?P<user>\S+) from (?P<ip>[\da-fA-F:.]+)(?=\s|$)"
+)
+_RE_SSH_INVALID = re.compile(r"Invalid user (?P<user>\S+) from (?P<ip>[\da-fA-F:.]+)(?=\s|$)")
+_RE_SSH_OK = re.compile(r"Accepted (?:password|publickey|keyboard-interactive/pam) for (?P<user>\S+) from (?P<ip>[\da-fA-F:.]+)(?=\s|$)")
+_RE_SSH_CLOSED = re.compile(r"Connection closed by (?:invalid user \S+ )?(?P<ip>[\da-fA-F:.]+)(?=\s|$)")
+_RE_SSH_DISCONNECT = re.compile(r"Disconnected from (?:invalid user \S+ )?(?:authenticating user \S+ )?(?P<ip>[\da-fA-F:.]+)(?=\s|$)")
 _RE_SUDO_CMD = re.compile(r"sudo:\s+(?P<user>\S+)\s+:\s+.*COMMAND=(?P<cmd>.+)$")
 _RE_SUDO_AUTHFAIL = re.compile(r"authentication failure")
 _RE_SUDO_INCORRECT = re.compile(r"incorrect password attempts?")
@@ -64,27 +68,46 @@ _RE_USERDEL = re.compile(r"^(?:userdel(?:\[\d+\])?:\s*)?delete user '(?P<user>[^
 _RE_PASSWD = re.compile(r"^(?:passwd(?:\[\d+\])?:\s*)?(?:pam_unix\([^)]+\):\s*)?password changed for (?P<user>\S+)")
 
 
+def canonical_ip(value):
+    try:
+        return str(ip_address(value))
+    except ValueError:
+        return None
+
+
+def kernel_device(message):
+    match = re.search(
+        r"(?:\(device\s+|\bI/O error, dev\s+|\bXFS\s*\()(?:/dev/)?([\w.-]+)",
+        message, re.I,
+    )
+    return match[1] if match else None
+
+
 def parse_auth_line(message: str, ident: str) -> Optional[dict[str, Any]]:
     """Detect auth-related patterns. Returns {category, severity, user, src_ip, ...} or None."""
     low = message.lower()
 
     if m := _RE_SSH_FAIL.search(message):
         return {"category": "ssh_failed", "severity": "WARN",
-                "user": m.group("user"), "src_ip": m.group("ip")}
+                "user": m.group("user"), "src_ip": canonical_ip(m.group("ip"))}
+
+    if m := _RE_SSH_KEY_FAIL.search(message):
+        return {"category": "ssh_key_failed", "severity": "WARN",
+                "user": m.group("user"), "src_ip": canonical_ip(m.group("ip"))}
 
     if m := _RE_SSH_INVALID.search(message):
         return {"category": "ssh_invalid_user", "severity": "WARN",
-                "user": m.group("user"), "src_ip": m.group("ip")}
+                "user": m.group("user"), "src_ip": canonical_ip(m.group("ip"))}
 
     if m := _RE_SSH_OK.search(message):
         return {"category": "ssh_login", "severity": "INFO",
-                "user": m.group("user"), "src_ip": m.group("ip")}
+                "user": m.group("user"), "src_ip": canonical_ip(m.group("ip"))}
 
     if m := _RE_SSH_CLOSED.search(message):
-        return {"category": "ssh_closed", "severity": "INFO", "src_ip": m.group("ip")}
+        return {"category": "ssh_closed", "severity": "INFO", "src_ip": canonical_ip(m.group("ip"))}
 
     if m := _RE_SSH_DISCONNECT.search(message):
-        return {"category": "ssh_disconnect", "severity": "INFO", "src_ip": m.group("ip")}
+        return {"category": "ssh_disconnect", "severity": "INFO", "src_ip": canonical_ip(m.group("ip"))}
 
     if ident.lower() == "sudo" or low.startswith("sudo:"):
         sudo_line = message if low.startswith("sudo:") else f"sudo: {message}"
@@ -97,6 +120,9 @@ def parse_auth_line(message: str, ident: str) -> Optional[dict[str, Any]]:
         if m := _RE_SUDO_CMD.search(sudo_line):
             return {"category": "sudo", "severity": "INFO",
                     "user": m.group("user"), "extra": {"command": m.group("cmd").strip()}}
+
+    if "pam_faillock(" in low and "temporarily locked" in low:
+        return {"category": "pam_lockout", "severity": "WARN"}
 
     if m := _RE_PAM_FAIL.search(message):
         return {"category": "pam_fail", "severity": "WARN", "user": m.group("user")}
