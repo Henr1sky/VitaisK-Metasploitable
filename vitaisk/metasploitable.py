@@ -286,15 +286,22 @@ class MetasploitableCollector(MetricsCollector):
         ))
 
 
-_SYN_LINE = re.compile(
+_PORT_PACKET = re.compile(
     r"^(?P<time>[0-9]+\.[0-9]+) (?:IP )?"
     r"(?P<src>[0-9.]+)\.(?P<sport>[0-9]+) > "
-    r"(?P<dst>[0-9.]+)\.(?P<dport>[0-9]+):"
+    r"(?P<dst>[0-9.]+)\.(?P<dport>[0-9]+):\s*(?P<detail>.*)$"
+)
+
+
+_ECHO_PACKET = re.compile(
+    r"^(?P<time>[0-9]+\.[0-9]+) (?:IP )?"
+    r"(?P<src>[0-9.]+) > (?P<dst>[0-9.]+):\s*ICMP echo request\b",
+    re.IGNORECASE,
 )
 
 
 class LabPacketCollector(Collector):
-    """Observe inbound TCP connection attempts at the VM interface."""
+    """Observe inbound IPv4 probes at the VM interface."""
 
     name = "metasploitable-packets"
     source = "network"
@@ -326,7 +333,7 @@ class LabPacketCollector(Collector):
                     if line == b"packet-ready\n":
                         event = make_event(
                             source="network", category="lab_packet_monitor", severity=Severity.INFO,
-                            message=f"Inbound TCP SYN monitor active for {self.host}",
+                            message=f"Inbound TCP SYN, UDP and ICMP echo monitor active for {self.host}",
                             host=self.host, extra={"lab_host": self.host},
                         )
                     else:
@@ -357,19 +364,37 @@ class LabPacketCollector(Collector):
                     process.kill()
 
     def _parse(self, line):
-        match = _SYN_LINE.match(line)
+        match = _ECHO_PACKET.match(line) or _PORT_PACKET.match(line)
         if not match or match["dst"] != self.host:
             return None
         try:
             src = str(ipaddress.IPv4Address(match["src"]))
         except ipaddress.AddressValueError:
             return None
+
+        fields = match.groupdict()
+        extra = {"lab_host": self.host}
+        dst_port = None
+        if "dport" in fields:
+            src_port, dst_port = int(match["sport"]), int(match["dport"])
+            if max(src_port, dst_port) > 65535:
+                return None
+            extra["src_port"] = src_port
+            if re.match(r"(?:UDP\b|domain\b)", match["detail"], re.IGNORECASE):
+                protocol, category, description = "udp", "udp_datagram", "UDP"
+            elif re.match(r"(?:Flags \[S\]|S(?:\s|$))", match["detail"]):
+                protocol, category, description = "tcp", "syn", "TCP SYN"
+                extra["flags"] = "S"
+            else:
+                return None
+            message = f"{description} {src}:{src_port} → {self.host}:{dst_port}"
+        else:
+            protocol, category = "icmp", "icmp_echo_request"
+            message = f"ICMP echo request (ping) {src} → {self.host}"
         return make_event(
-            source="network", category="syn", severity=Severity.INFO,
-            message=f"TCP SYN {src}:{match['sport']} → {self.host}:{match['dport']}",
-            ts=float(match["time"]), host=self.host, src_ip=src, dst_ip=self.host,
-            dst_port=int(match["dport"]), protocol="tcp",
-            extra={"src_port": int(match["sport"]), "lab_host": self.host, "flags": "S"},
+            source="network", category=category, severity=Severity.INFO,
+            message=message, ts=float(match["time"]), host=self.host,
+            src_ip=src, dst_ip=self.host, dst_port=dst_port, protocol=protocol, extra=extra,
         )
 
 

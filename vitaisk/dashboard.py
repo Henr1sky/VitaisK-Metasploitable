@@ -253,9 +253,11 @@ class Dashboard:
         if key in ("q", "Q"):
             return False
         if key in ("left", "right"):
+            self.frozen = None
             self.filters.view = _cycle(VIEWS, self.filters.view, 1 if key == "right" else -1)
             self.selection = 0
         if key in ("1", "2", "3"):
+            self.frozen = None
             self.filters.view = VIEWS[int(key) - 1]
             self.selection = 0
         if key in ("f", "F", "/", "l", "s"):
@@ -316,6 +318,8 @@ class Dashboard:
             if key == "enter":
                 try:
                     self.filters = ViewFilter.for_profile(self.config, names[self.profile_cursor])
+                    self.frozen = None
+                    self.selection = 0
                     self.ignore_cursor = 0
                 except re.error:
                     self.error = label("Invalid regular expression in profile",

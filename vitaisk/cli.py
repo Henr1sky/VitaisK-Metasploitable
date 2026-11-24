@@ -286,7 +286,7 @@ def cmd_lab_doctor(lab_host, lab_bind, lab_user):
 @option("--save/--no-save", "save", default=None,
               help="Write the session during monitoring (default from config).")
 @option("--metasploitable", is_flag=True, help="Use the isolated Metasploitable 2 VM over SSH.")
-@option("--lab-packets", is_flag=True, help="Show TCP connection attempts on the VM (requires VM sudo).")
+@option("--lab-packets", is_flag=True, help="Show inbound TCP SYN, UDP and ping on the VM (requires VM sudo).")
 @_lab_endpoint
 @click.pass_context
 def cmd_watch(ctx: click.Context, metasploitable, lab_packets, lab_host, lab_bind, lab_user, **opts) -> None:
