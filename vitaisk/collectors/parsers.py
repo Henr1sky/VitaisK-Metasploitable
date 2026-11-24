@@ -55,12 +55,13 @@ _RE_SSH_OK = re.compile(r"Accepted (?:password|publickey|keyboard-interactive/pa
 _RE_SSH_CLOSED = re.compile(r"Connection closed by (?:invalid user \S+ )?(?P<ip>[\d.]+)")
 _RE_SSH_DISCONNECT = re.compile(r"Disconnected from (?:invalid user \S+ )?(?:authenticating user \S+ )?(?P<ip>[\d.]+)")
 _RE_SUDO_CMD = re.compile(r"sudo:\s+(?P<user>\S+)\s+:\s+.*COMMAND=(?P<cmd>.+)$")
-_RE_SUDO_AUTHFAIL = re.compile(r"sudo:.*authentication failure.*?(?:user=(?P<user>\S+))?")
-_RE_SUDO_INCORRECT = re.compile(r"sudo:.*incorrect password attempts?.*?(?:for (?P<user>\S+))?")
+_RE_SUDO_AUTHFAIL = re.compile(r"authentication failure")
+_RE_SUDO_INCORRECT = re.compile(r"incorrect password attempts?")
+_RE_SUDO_USER = re.compile(r"(?:^sudo:\s*(?P<actor>[^\s:]+)\s+:|\buser=(?P<pam>[^\s;]+))")
 _RE_PAM_FAIL = re.compile(r"pam_unix\([^)]+\):.*authentication failure.*?user=(?P<user>\S+)")
-_RE_USERADD = re.compile(r"useradd\[\d+\]: new user: name=(?P<user>\S+)")
-_RE_USERDEL = re.compile(r"userdel\[\d+\]: delete user '(?P<user>[^']+)'")
-_RE_PASSWD = re.compile(r"passwd\[\d+\]: password changed for (?P<user>\S+)")
+_RE_USERADD = re.compile(r"^(?:useradd(?:\[\d+\])?:\s*)?new user: name=(?P<user>[^\s,]+)")
+_RE_USERDEL = re.compile(r"^(?:userdel(?:\[\d+\])?:\s*)?delete user '(?P<user>[^']+)'")
+_RE_PASSWD = re.compile(r"^(?:passwd(?:\[\d+\])?:\s*)?(?:pam_unix\([^)]+\):\s*)?password changed for (?P<user>\S+)")
 
 
 def parse_auth_line(message: str, ident: str) -> Optional[dict[str, Any]]:
@@ -85,29 +86,30 @@ def parse_auth_line(message: str, ident: str) -> Optional[dict[str, Any]]:
     if m := _RE_SSH_DISCONNECT.search(message):
         return {"category": "ssh_disconnect", "severity": "INFO", "src_ip": m.group("ip")}
 
-    if "sudo:" in low:
-        if m := _RE_SUDO_CMD.search(message):
+    if ident.lower() == "sudo" or low.startswith("sudo:"):
+        sudo_line = message if low.startswith("sudo:") else f"sudo: {message}"
+        match = _RE_SUDO_USER.search(sudo_line)
+        actor = (match.group("actor") or match.group("pam")) if match else None
+        if _RE_SUDO_AUTHFAIL.search(sudo_line):
+            return {"category": "sudo_auth_fail", "severity": "WARN", "user": actor}
+        if _RE_SUDO_INCORRECT.search(sudo_line):
+            return {"category": "sudo_wrong_password", "severity": "WARN", "user": actor}
+        if m := _RE_SUDO_CMD.search(sudo_line):
             return {"category": "sudo", "severity": "INFO",
                     "user": m.group("user"), "extra": {"command": m.group("cmd").strip()}}
-        if m := _RE_SUDO_AUTHFAIL.search(message):
-            return {"category": "sudo_auth_fail", "severity": "WARN",
-                    "user": m.group("user") if m.group("user") else None}
-        if m := _RE_SUDO_INCORRECT.search(message):
-            return {"category": "sudo_wrong_password", "severity": "WARN",
-                    "user": m.group("user") if m.group("user") else None}
 
     if m := _RE_PAM_FAIL.search(message):
         return {"category": "pam_fail", "severity": "WARN", "user": m.group("user")}
 
-    if m := _RE_USERADD.search(message):
+    if (ident == "useradd" or low.startswith(("useradd:", "useradd["))) and (m := _RE_USERADD.search(message)):
         return {"category": "user_added", "severity": "WARN",
                 "user": m.group("user"), "extra": {"event": "useradd"}}
 
-    if m := _RE_USERDEL.search(message):
+    if (ident == "userdel" or low.startswith(("userdel:", "userdel["))) and (m := _RE_USERDEL.search(message)):
         return {"category": "user_removed", "severity": "WARN",
                 "user": m.group("user"), "extra": {"event": "userdel"}}
 
-    if m := _RE_PASSWD.search(message):
+    if (ident == "passwd" or low.startswith(("passwd:", "passwd["))) and (m := _RE_PASSWD.search(message)):
         return {"category": "password_changed", "severity": "INFO", "user": m.group("user")}
 
     if "session opened for user" in low or "session closed for user" in low:

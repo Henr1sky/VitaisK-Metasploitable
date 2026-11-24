@@ -29,6 +29,29 @@ def find_log(candidates: list[str]) -> Optional[Path]:
     return None
 
 
+def _firewall_event(line, parsed, ts):
+    message = parsed["message"]
+    fw = parse_firewall_line(message)
+    if not fw:
+        return None
+
+    return Event(
+        ts=ts,
+        source="firewall",
+        category=fw["category"],
+        severity=Severity.parse(fw["severity"]),
+        message=message[:2000],
+        raw=line,
+        host=parsed["host"],
+        pid=parsed["pid"],
+        src_ip=fw.get("src_ip"),
+        dst_ip=fw.get("dst_ip"),
+        dst_port=fw.get("dst_port"),
+        protocol=fw.get("protocol"),
+        extra=fw.get("extra", {}),
+    )
+
+
 # ── base tail collector ────────────────────────────────────────────
 class BaseFileCollector(Collector):
     """Generic file follower. Subclasses supply `_handle_line`."""
@@ -224,6 +247,11 @@ class KernelLogCollector(BaseFileCollector):
         message = parsed["message"]
         ts = parse_syslog_ts(parsed["ts_raw"])
 
+        if self.config.firewall_enabled:
+            firewall = _firewall_event(line, parsed, ts)
+            if firewall:
+                return firewall
+
         k = parse_kernel_line(message)
         if k:
             return Event(
@@ -269,25 +297,7 @@ class FirewallLogCollector(BaseFileCollector):
         message = parsed["message"]
         ts = parse_syslog_ts(parsed["ts_raw"])
 
-        fw = parse_firewall_line(message)
-        if not fw:
-            return None
-
-        return Event(
-            ts=ts,
-            source="firewall",
-            category=fw["category"],
-            severity=Severity.parse(fw["severity"]),
-            message=message[:2000],
-            raw=line,
-            host=parsed["host"],
-            pid=parsed["pid"],
-            src_ip=fw.get("src_ip"),
-            dst_ip=fw.get("dst_ip"),
-            dst_port=fw.get("dst_port"),
-            protocol=fw.get("protocol"),
-            extra=fw.get("extra", {}),
-        )
+        return _firewall_event(line, parsed, ts)
 
 
 # ── standalone test ───────────────────────────────────────────────
