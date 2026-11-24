@@ -59,7 +59,8 @@ class MetasploitableTests(unittest.TestCase):
         collector = LabPacketCollector(
             self.queue, Config(), None, [], "192.168.56.101", "192.168.56.102", bytearray(),
         )
-        pipeline = Pipeline(load_rules())
+        rule = load_rules()["tcp-syn-many-ports"]
+        pipeline = Pipeline({rule["id"]: rule})
         self.assertIsNone(collector._parse("1700000000.01 IP 192.0.2.1.33333 > 192.168.56.101.22: S"))
         old_format = "1700000000.01 IP 192.168.56.102.33333 > 192.168.56.101.22: S"
         for _ in range(15):
