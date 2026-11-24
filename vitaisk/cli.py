@@ -285,18 +285,23 @@ def cmd_lab_doctor(lab_host, lab_bind, lab_user):
 @option("--save/--no-save", "save", default=None,
               help="Write the session during monitoring (default from config).")
 @option("--metasploitable", is_flag=True, help="Use the isolated Metasploitable 2 VM over SSH.")
+@option("--lab-packets", is_flag=True, help="Show TCP connection attempts on the VM (requires VM sudo).")
 @_lab_endpoint
 @click.pass_context
-def cmd_watch(ctx: click.Context, metasploitable, lab_host, lab_bind, lab_user, **opts) -> None:
+def cmd_watch(ctx: click.Context, metasploitable, lab_packets, lab_host, lab_bind, lab_user, **opts) -> None:
     """Live monitoring. Press Ctrl+C to stop."""
     from .watch import watch
 
     try:
         cfg = _load_config(ctx, ctx.obj["lang"], ctx.obj["config_path"])
+        if lab_packets and not metasploitable:
+            raise ValueError("--lab-packets requires --metasploitable")
+        if lab_packets and not sys.stdin.isatty():
+            raise ValueError("--lab-packets requires an interactive terminal for VM sudo")
         if metasploitable:
             from .metasploitable import lab_manager
 
-            with lab_manager(cfg, lab_host, lab_bind, lab_user) as manager:
+            with lab_manager(cfg, lab_host, lab_bind, lab_user, packets=lab_packets) as manager:
                 saved = watch(cfg, console, manager=manager,
                               baseline_name=f"baseline-lab-{lab_host}.json", **opts)
         else:

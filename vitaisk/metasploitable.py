@@ -6,14 +6,17 @@ import base64
 import ipaddress
 import json
 import re
+import shlex
 import subprocess
 import tempfile
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
+from getpass import getpass
 from importlib.resources import files
 from pathlib import Path
 
 from .collectors.audit import AuditCollector
+from .collectors.base import Collector
 from .collectors.filetail import (
     AuthLogCollector, FirewallLogCollector, KernelLogCollector, SyslogCollector,
 )
@@ -275,14 +278,109 @@ class MetasploitableCollector(MetricsCollector):
         ))
 
 
-@contextmanager
-def lab_manager(config, host: str, bind: str, user: str):
-    with lab_ssh(host, bind, user) as command:
-        manager = CollectorManager(
-            config, build=lambda settings, queue, stop: [
-                MetasploitableCollector(queue, settings, stop, command, host),
-            ],
+_SYN_LINE = re.compile(
+    r"^(?P<time>[0-9]+\.[0-9]+) (?:IP )?"
+    r"(?P<src>[0-9.]+)\.(?P<sport>[0-9]+) > "
+    r"(?P<dst>[0-9.]+)\.(?P<dport>[0-9]+):"
+)
+
+
+class LabPacketCollector(Collector):
+    """Observe TCP connection attempts from Kali at the VM interface."""
+
+    name = "metasploitable-packets"
+    source = "network"
+
+    def __init__(self, queue, config, stop_event, command, host, bind, password):
+        super().__init__(queue, config, stop_event)
+        self.command = command
+        self.host = host
+        self.bind = bind
+        self.password = password
+        self.process = None
+
+    def _run(self):
+        agent = shlex.quote(agent_script().decode("utf-8"))
+        with subprocess.Popen(
+            [*self.command, f"python -u -c {agent} packet-bridge"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        ) as process:
+            self.process = process
+            try:
+                if self.should_stop():
+                    return
+                process.stdin.write(self.password)
+                process.stdin.flush()
+                self.password.clear()
+                while not self.should_stop():
+                    line = process.stdout.readline(4096)
+                    if not line:
+                        break
+                    if line == b"packet-ready\n":
+                        event = make_event(
+                            source="network", category="lab_packet_monitor", severity=Severity.INFO,
+                            message=f"TCP SYN monitor active for {self.bind} → {self.host}",
+                            host=self.host, extra={"lab_host": self.host},
+                        )
+                    else:
+                        event = self._parse(line.decode("ascii", "replace"))
+                    if event:
+                        self.emit(event)
+                if not self.should_stop():
+                    raise RuntimeError("VM packet capture stopped; check sudo access and tcpdump")
+            finally:
+                self.password.clear()
+                self._on_stop()
+
+    def _on_stop(self):
+        process = self.process
+        if process is None:
+            return
+        with suppress(OSError, ValueError):
+            process.stdin.close()
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            with suppress(ProcessLookupError):
+                process.terminate()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                with suppress(ProcessLookupError):
+                    process.kill()
+
+    def _parse(self, line):
+        match = _SYN_LINE.match(line)
+        if not match or match["src"] != self.bind or match["dst"] != self.host:
+            return None
+        return make_event(
+            source="network", category="syn", severity=Severity.INFO,
+            message=f"TCP SYN {self.bind}:{match['sport']} → {self.host}:{match['dport']}",
+            ts=float(match["time"]), host=self.host, src_ip=self.bind, dst_ip=self.host,
+            dst_port=int(match["dport"]), protocol="tcp",
+            extra={"src_port": int(match["sport"]), "lab_host": self.host, "flags": "S"},
         )
-        yield manager
-        if manager.collectors[0].error:
-            raise ValueError(str(manager.collectors[0].error))
+
+
+@contextmanager
+def lab_manager(config, host: str, bind: str, user: str, *, packets: bool = False):
+    with lab_ssh(host, bind, user) as command:
+        password = bytearray()
+        if packets:
+            password.extend(getpass("VM sudo password for packet monitoring: ").encode("utf-8"))
+            password.append(10)
+
+        def collectors(settings, queue, stop):
+            sources = [MetasploitableCollector(queue, settings, stop, command, host)]
+            if packets:
+                sources.append(LabPacketCollector(queue, settings, stop, command, host, bind, password))
+            return sources
+
+        manager = CollectorManager(config, build=collectors)
+        try:
+            yield manager
+            errors = [str(collector.error) for collector in manager.collectors if collector.error]
+            if errors:
+                raise ValueError("; ".join(errors))
+        finally:
+            password.clear()
