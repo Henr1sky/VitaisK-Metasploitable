@@ -22,13 +22,7 @@ Esta edição usa o Python 2.5.2 do Ubuntu 8.04 para coletar dados na VM. No Kal
 
 O OpenSSH pede a senha diretamente no terminal antes de abrir o painel. O coletor é enviado pela conexão e executado em memória na VM. As opções `--lab-host`, `--lab-bind` e `--lab-user` permitem ajustar o endereço e a conta de outro laboratório. A conexão exige IPv4 privado diretamente alcançável pela interface escolhida, chave SSH já conhecida e VM sem rota padrão ativa. Se a sessão SSH cair, o monitor encerra e avisa. Rode o comando novamente para conectar.
 
-O painel mostra eventos e métricas **da VM**. Use `--source auth` para focar em autenticação, `--only-anomalies` para alertas e `--mode stream` para saída em texto. A tecla `q` fecha o painel. Por padrão, sessões são armazenadas no Kali com permissões privadas. Use `--no-save` para não gravar.
-
-```sh
-.venv/bin/vitaisk sessions list
-.venv/bin/vitaisk summary --session latest
-.venv/bin/vitaisk export --session latest --format csv --output sessao.csv
-```
+O painel mostra eventos e métricas **da VM**. Use `--source auth` para focar em autenticação, `--only-anomalies` para alertas e `--mode stream` para saída em texto. A tecla `q` fecha o painel. Consulte [onde os logs ficam salvos](#onde-os-logs-ficam-salvos).
 
 O estado estatístico do laboratório é mantido por endereço da VM, separado do monitor local. Os registros das sessões identificam a origem em `extra.lab_host`.
 
@@ -77,37 +71,12 @@ python /dev/shm/vitaisk.EXEMPLO/vitaisk.py watch --source auth --once
 
 O painel mostra linhas recentes, CPU, RAM e uso de disco. Use `1` para sistema, `2` para autenticação, `3` para kernel, `a` para todas as fontes, `p` para pausar a exibição e `q` para sair. `--once` lê o histórico e termina. Se seu terminal não for reconhecido, acrescente `TERM=xterm` antes de `python`.
 
-## Onde os logs e as sessões ficam salvos
+## Onde os logs ficam salvos
 
-### No Metasploitable 2
+- **No console do Metasploitable 2**, o painel lê os logs que a VM já grava em `/var/log/syslog` (ou `/var/log/messages`), `/var/log/auth.log` e `/var/log/kern.log`. O painel mantém o histórico recente em memória e não grava sessões na VM.
+- **No Kali com `watch --metasploitable`**, os eventos recebidos por SSH são salvos, por padrão, em `~/.local/share/vitaisk/sessions/` no Kali. O formato e a gravação seguem o [VitaisK original](https://github.com/Henr1sky/VitaisK#dados-sess%C3%B5es-e-captura).
 
-Os serviços da VM gravam os logs originais em `/var/log`. O painel nativo lê estes arquivos e mantém o histórico recente em memória, sem criar um arquivo de sessão.
-
-| Fonte | Arquivo na VM |
-| --- | --- |
-| Sistema | `/var/log/syslog` ou `/var/log/messages` |
-| Autenticação | `/var/log/auth.log` |
-| Kernel | `/var/log/kern.log` |
-| Firewall, se disponível para o coletor SSH | `/var/log/ufw.log` ou `/var/log/firewall.log` |
-| Auditoria, se disponível para o coletor SSH | `/var/log/audit/audit.log` |
-
-Se o disco da VM estiver somente para leitura, os arquivos permanecem acessíveis para consulta, mas deixam de receber novos eventos.
-
-### No Kali, ao monitorar por SSH
-
-Com a gravação de sessões habilitada (padrão), o VitaisK salva os eventos coletados e os alertas no Kali. O formato padrão é `.jsonl.gz`, com opção de `.jsonl`. Cada evento do laboratório inclui o IP da VM em `extra.lab_host`.
-
-| Como o VitaisK é executado | Pasta das sessões no Kali |
-| --- | --- |
-| Usuário normal, configuração padrão | `~/.local/share/vitaisk/sessions/` |
-| Usuário normal com `XDG_DATA_HOME` definido | `$XDG_DATA_HOME/vitaisk/sessions/` |
-| Como root | `/var/lib/vitaisk/sessions/` |
-
-Para localizar os dados, rode `.venv/bin/vitaisk config path` no Kali. A segunda linha mostra a pasta de dados, que contém `sessions/`. Use `.venv/bin/vitaisk sessions list` para listar as sessões finalizadas. Para exportar a mais recente para um arquivo no diretório atual:
-
-```sh
-.venv/bin/vitaisk export --session latest --format csv --output sessao.csv
-```
+Se você abrir o painel nativo a partir de um terminal SSH, ele continua rodando na própria VM e mantém o histórico em memória.
 
 ## Cobertura e limites
 
