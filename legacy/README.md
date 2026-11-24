@@ -37,6 +37,23 @@ No Kali, ative o coletor de pacotes da VM quando quiser observar tentativas de c
 
 O monitor pede a senha para `sudo` na VM e usa o `tcpdump` que já está instalado nela. Ele produz eventos com os endereços e as portas dos pacotes SYN enviados do Kali para a VM. Doze portas de destino distintas em até dez segundos geram o alerta `tcp-syn-many-ports`. A opção acompanha apenas novas tentativas TCP desse par de endereços e independe da gravação em `/var/log`.
 
+### Correlações no laboratório
+
+| Regra | Evidência que precisa chegar ao VitaisK |
+| --- | --- |
+| `ssh-fail-then-success` | Cinco falhas de SSH seguidas de login para o mesmo host, IP e usuário. |
+| `inbound-scan-then-ssh-fail` | Bloqueios TCP a portas distintas no firewall, seguidos de falha de SSH da mesma origem e no mesmo host. |
+| `tcp-syn-many-ports-then-ssh-fail` | Tentativas TCP em várias portas da VM, seguidas de falha de SSH para o mesmo par de endereços. Use `--lab-packets` para alimentar essa regra. |
+
+O coletor lê os arquivos no Metasploitable 2. Bloqueios do firewall podem chegar pelo `kern.log` mesmo sem um arquivo exclusivo de firewall. A captura passiva é uma fonte separada e observa os SYN IPv4 do Kali para a VM. O SSH transporta os dados e o motor no Kali aplica as regras. No painel, pressione `3` para abrir **Anomalias** e `Enter` para ver as fontes e a contagem da correlação.
+
+Os testes de detecção reproduzem registros sintéticos. Execute no Kali:
+
+```sh
+# Valide cada regra incluída e os cenários de correlação.
+.venv/bin/python -m unittest discover -s tests -p 'test_lab_rules.py' -v
+```
+
 ## Painel dentro da VM
 
 ### Pelo console do VirtualBox, sem SSH
