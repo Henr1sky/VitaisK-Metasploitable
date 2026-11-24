@@ -65,6 +65,42 @@
   threshold: 12
   window: 10
   severity: WARN
+- id: scan-tcp-syn-high
+  source: network
+  category: syn
+  equals: {protocol: tcp}
+  group_by: [src_ip, dst_ip]
+  distinct: dst_port
+  threshold: 30
+  window: 10
+  severity: WARN
+- id: scan-tcp-syn-threshold
+  source: network
+  category: syn
+  equals: {protocol: tcp}
+  group_by: [src_ip]
+  threshold: 20
+  window: 60
+  severity: WARN
+- id: scan-tcp-syn-aggressive
+  source: network
+  category: syn
+  equals: {protocol: tcp}
+  group_by: [src_ip]
+  threshold: 100
+  window: 10
+  severity: CRITICAL
+- id: tcp-syn-many-ports-then-ssh-fail
+  source: network
+  category: syn
+  equals: {protocol: tcp}
+  followed_by: {source: auth, category: ssh_failed}
+  group_by: [src_ip, dst_ip]
+  distinct: dst_port
+  threshold: 12
+  window: 60
+  match_window: 10
+  severity: ERROR
 - id: firewall-port-scan-tcp
   source: firewall
   category: firewall_block
@@ -105,7 +141,7 @@
   severity: WARN
 - id: kernel-fs-corruption
   source: kernel
-  contains: ["ext4-fs error", "xfs corruption", "journal abort"]
+  contains: ["ext3-fs error", "ext4-fs error", "xfs corruption", "journal abort", "aborting journal", "journal has aborted"]
   severity: CRITICAL
 - id: kernel-rcu-stall
   source: kernel
