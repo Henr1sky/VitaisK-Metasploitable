@@ -41,6 +41,10 @@ class Anomaly:
             if lang == "pt":
                 return f"{self.event_count} erros neste minuto (Z={self.z_score:.1f})"
             return f"{self.event_count} errors this minute (Z={self.z_score:.1f})"
+        if self.rule_id == "lab-possible-port-scan":
+            if lang == "pt":
+                return f"Possível varredura de portas ({self.event_count} portas)"
+            return f"Possible port scan ({self.event_count} ports)"
         if self.event_count == 1:
             return self.rule_id
         elapsed = self.window_end - self.window_start
