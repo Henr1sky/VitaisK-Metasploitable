@@ -1,0 +1,405 @@
+# These detectors evaluate structured observations; no producer-supplied rule ID is needed.
+- id: dns-tunnel-long-query
+  source: network
+  category: telemetry_dns
+  equals: {extra.operation: query}
+  number: {extra.query_length: {gt: 50}}
+  group_by: [host, src_ip]
+  threshold: 10
+  window: 60
+  severity: WARN
+
+- id: dns-tunnel-txt-heavy
+  source: network
+  category: telemetry_dns
+  equals: {extra.operation: query, extra.qtype: TXT}
+  number: {extra.payload_bytes: {gt: 50}}
+  group_by: [host, src_ip]
+  threshold: 10
+  window: 60
+  severity: ERROR
+
+- id: dns-tunnel-null-private-rr
+  source: network
+  category: telemetry_dns
+  one_of: {extra.qtype: ['NULL', PRIVATE]}
+  severity: WARN
+
+- id: dns-query-burst
+  source: network
+  category: telemetry_dns
+  equals: {extra.operation: query}
+  group_by: [host, src_ip]
+  threshold: 100
+  window: 10
+  severity: WARN
+
+- id: dns-nxdomain-burst
+  source: network
+  category: telemetry_dns
+  equals: {extra.operation: response, extra.rcode: NXDOMAIN}
+  group_by: [host, dst_ip]
+  threshold: 50
+  window: 30
+  severity: INFO
+
+- id: dns-query-type-anomaly
+  source: network
+  category: telemetry_dns
+  equals: {extra.operation: query, extra.authorized: false}
+  one_of: {extra.qtype: [ANY, AXFR, IXFR]}
+  severity: WARN
+
+- id: firewall-dns-zone-transfer
+  source: network
+  category: telemetry_dns
+  equals: {extra.operation: query, extra.authorized: false, extra.qtype: AXFR}
+  severity: WARN
+  suggested_actions: [BLOCK]
+
+- id: burst-http-flood
+  source: network
+  category: telemetry_http
+  group_by: [host, src_ip]
+  threshold: 40
+  window: 10
+  severity: WARN
+
+- id: firewall-http-flood
+  source: network
+  category: telemetry_http
+  group_by: [host, src_ip]
+  threshold: 301
+  window: 1
+  severity: ERROR
+  suggested_actions: [RATE-LIMIT]
+
+- id: exfil-http-post-large
+  source: network
+  category: telemetry_http
+  equals: {extra.method: POST}
+  number: {extra.body_bytes: {gt: 1048576}}
+  severity: WARN
+
+- id: firewall-http-auth-brute
+  source: network
+  category: telemetry_http
+  equals: {extra.status: 401, extra.authentication: basic}
+  group_by: [host, src_ip]
+  threshold: 10
+  window: 60
+  severity: WARN
+  suggested_actions: [BLOCK]
+
+- id: firewall-web-login-brute
+  source: network
+  category: telemetry_http
+  equals: {extra.status: 401, extra.method: POST, extra.login_endpoint: true}
+  group_by: [host, src_ip]
+  threshold: 10
+  window: 60
+  severity: WARN
+  suggested_actions: [RATE-LIMIT]
+
+- id: proto-http-method-uncommon
+  source: network
+  category: telemetry_http
+  equals: {extra.external_destination: true, extra.approved_destination: false}
+  one_of: {extra.method: [PUT, DELETE, TRACE, PATCH]}
+  severity: WARN
+
+- id: proto-http-long-uri
+  source: network
+  category: telemetry_http
+  number: {extra.uri_length: {gt: 2000}}
+  severity: WARN
+
+- id: firewall-http-host-missing
+  source: network
+  category: telemetry_http
+  equals: {extra.http_version: '1.1', extra.host_header_present: false}
+  severity: WARN
+  suggested_actions: [DROP]
+
+- id: firewall-user-agent-empty
+  source: network
+  category: telemetry_http
+  equals: {extra.sensitive_endpoint: true, extra.user_agent_present: false}
+  severity: WARN
+
+- id: firewall-http-smuggling
+  source: network
+  category: telemetry_http
+  equals: {extra.framing_conflict: true}
+  severity: ERROR
+  suggested_actions: [BLOCK]
+
+- id: firewall-content-length-mismatch
+  source: network
+  category: telemetry_http
+  equals: {extra.content_length_mismatch: true}
+  severity: WARN
+  suggested_actions: [DROP]
+
+- id: firewall-chunked-encoding-abuse
+  source: network
+  category: telemetry_http
+  equals: {extra.chunk_size_invalid: true}
+  severity: WARN
+  suggested_actions: [DROP]
+
+- id: rdp-brute-force
+  source: auth
+  category: telemetry_authentication
+  equals: {protocol: rdp, extra.result: failure}
+  group_by: [host, src_ip]
+  threshold: 5
+  window: 60
+  severity: ERROR
+
+- id: ftp-brute-force
+  source: auth
+  category: telemetry_authentication
+  equals: {protocol: ftp, extra.result: failure}
+  group_by: [host, src_ip]
+  threshold: 5
+  window: 60
+  severity: WARN
+
+- id: ftp-anonymous-login
+  source: auth
+  category: telemetry_authentication
+  equals: {protocol: ftp, extra.result: success, extra.anonymous: true}
+  severity: INFO
+
+- id: openvpn-auth-fail
+  source: auth
+  category: telemetry_authentication
+  equals: {protocol: openvpn, extra.result: failure}
+  group_by: [host, src_ip]
+  threshold: 3
+  window: 120
+  severity: WARN
+
+- id: exfil-off-hours
+  source: network
+  category: telemetry_flow
+  equals: {extra.direction: outbound, extra.outside_business_hours: true}
+  number: {extra.outbound_bytes: {gt: 52428800}}
+  severity: WARN
+
+- id: exfil-unusual-port
+  source: network
+  category: telemetry_flow
+  equals: {extra.direction: outbound}
+  number: {dst_port: {gt: 1024}, extra.outbound_bytes: {gt: 10485760}}
+  severity: WARN
+
+- id: exfil-generic-session-long
+  source: network
+  category: telemetry_flow
+  equals: {protocol: tcp, extra.direction: outbound, extra.continuous: true}
+  number: {extra.duration_seconds: {gt: 1800}}
+  severity: INFO
+
+- id: exfil-rclone-process
+  source: network
+  category: telemetry_flow
+  equals: {extra.direction: outbound, extra.external_destination: true, extra.process: rclone, extra.upload: true}
+  severity: CRITICAL
+
+- id: exfil-large-outbound
+  source: network
+  category: telemetry_flow
+  equals: {extra.direction: outbound, extra.external_destination: true, extra.new_destination: true}
+  number: {extra.duration_seconds: {gt: 0, lte: 60}, extra.outbound_bytes: {gt: 104857600}}
+  severity: CRITICAL
+
+- id: c2-port-unusual
+  source: network
+  category: telemetry_flow
+  equals: {extra.direction: outbound}
+  number: {dst_port: {gt: 10000}, extra.duration_seconds: {gt: 300}}
+  severity: WARN
+
+- id: service-masked-orphan
+  source: system
+  category: telemetry_service
+  equals: {extra.critical_unit: true, extra.masked: true, extra.expected_unmasked: true}
+  severity: ERROR
+
+- id: timer-overdue
+  source: system
+  category: telemetry_service
+  number: {extra.timer_delay_ratio_percent: {gt: 200}}
+  severity: WARN
+
+- id: service-health-endpoint-down
+  source: system
+  category: telemetry_service
+  equals: {extra.state: active, extra.health_reachable: false}
+  severity: ERROR
+
+- id: service-response-degraded
+  source: system
+  category: telemetry_service
+  equals: {extra.health_reachable: true, extra.latency_over_p95: true}
+  severity: WARN
+
+- id: service-throughput-drop
+  source: system
+  category: telemetry_service
+  number: {extra.throughput_drop_percent: {gt: 50, lte: 100}}
+  severity: WARN
+
+- id: service-error-rate-spike
+  source: system
+  category: telemetry_service
+  equals: {extra.error_rate_above_baseline: true}
+  severity: WARN
+
+- id: service-dependency-external-down
+  source: system
+  category: telemetry_service
+  equals: {extra.external_dependency_reachable: false}
+  severity: ERROR
+
+- id: service-functional-probe-fail
+  source: system
+  category: telemetry_service
+  equals: {extra.functional_probe_ok: false}
+  severity: ERROR
+
+- id: service-saturation-fd
+  source: system
+  category: telemetry_service
+  number: {extra.fd_usage_percent: {gt: 90}}
+  severity: WARN
+
+- id: service-saturation-threads
+  source: system
+  category: telemetry_service
+  number: {extra.tasks_usage_percent: {gte: 90}}
+  severity: WARN
+
+- id: service-connection-pool-exhausted
+  source: system
+  category: telemetry_service
+  equals: {extra.available_pool_connections: 0}
+  number: {extra.utilized_pool_connections: {gt: 0}}
+  severity: WARN
+
+- id: service-slo-burn-rate
+  source: system
+  category: telemetry_service
+  equals: {extra.burn_rate_above_limit: true}
+  severity: WARN
+
+- id: unit-file-changed-no-reload
+  source: system
+  category: telemetry_service
+  equals: {extra.unit_file_changed: true, extra.needs_reload: true}
+  severity: WARN
+
+- id: running-as-root
+  source: system
+  category: telemetry_service
+  equals: {extra.running_as_root: true, extra.dedicated_user_required: true}
+  severity: ERROR
+
+- id: no-new-privileges-disabled
+  source: system
+  category: telemetry_service
+  equals: {extra.critical_unit: true, extra.no_new_privileges: false}
+  severity: WARN
+
+- id: private-tmp-disabled
+  source: system
+  category: telemetry_service
+  equals: {extra.critical_unit: true, extra.private_tmp: false}
+  severity: WARN
+
+- id: protect-system-disabled
+  source: system
+  category: telemetry_service
+  equals: {extra.critical_unit: true, extra.protect_system: false}
+  severity: WARN
+
+- id: security-exposure-high
+  source: system
+  category: telemetry_service
+  number: {extra.exposure_tenths: {gt: 70, lte: 100}}
+  severity: WARN
+
+- id: node-exporter-down
+  source: metrics
+  category: telemetry_monitoring
+  equals: {extra.exporter_reachable: false}
+  severity: ERROR
+
+- id: systemd-collector-disabled
+  source: metrics
+  category: telemetry_monitoring
+  equals: {extra.exporter_reachable: true, extra.systemd_collector_enabled: false}
+  severity: ERROR
+
+- id: metric-stale
+  source: metrics
+  category: telemetry_monitoring
+  equals: {extra.systemd_metric_expected: true, extra.systemd_metric_present: false}
+  severity: WARN
+
+- id: exporter-scrape-slow
+  source: metrics
+  category: telemetry_monitoring
+  number: {extra.scrape_duration_ms: {gt: 10000}}
+  severity: WARN
+
+- id: failed-units-accumulation
+  source: metrics
+  category: telemetry_monitoring
+  number: {extra.failed_units: {gt: 50}}
+  severity: WARN
+
+- id: rule-coverage-gap
+  source: metrics
+  category: telemetry_monitoring
+  equals: {extra.critical_unit: true, extra.alert_rule_present: false}
+  severity: WARN
+
+- id: runbook-missing
+  source: metrics
+  category: telemetry_monitoring
+  equals: {extra.alert_open: true, extra.runbook_present: false}
+  severity: WARN
+
+- id: escalation-required
+  source: metrics
+  category: telemetry_monitoring
+  equals: {extra.alert_open: true, extra.critical_alert: true, extra.acknowledged: false}
+  number: {extra.open_seconds: {gt: 900}}
+  severity: ERROR
+
+- id: auto-remediation-failed
+  source: metrics
+  category: telemetry_monitoring
+  equals: {extra.remediation_failed: true}
+  severity: ERROR
+
+- id: remediation-loop
+  source: metrics
+  category: telemetry_monitoring
+  number: {extra.remediation_failures_last_hour: {gt: 3}}
+  severity: ERROR
+
+- id: maintenance-window-violation
+  source: metrics
+  category: telemetry_monitoring
+  equals: {extra.maintenance: true, extra.alert_open: true}
+  severity: INFO
+
+- id: baseline-drift-prod
+  source: metrics
+  category: telemetry_monitoring
+  equals: {extra.baseline_drift: true}
+  severity: WARN

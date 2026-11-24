@@ -66,6 +66,7 @@ class CollectorManager:
                     "events": c.events_emitted,
                     "uptime": round(c.uptime, 1),
                     "error": str(c.error) if c.error else None,
+                    "rejected": getattr(c, "rejected", 0),
                 }
                 for c in self.collectors
             ],

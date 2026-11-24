@@ -12,7 +12,7 @@ from typing import Optional
 from ..events import Event, Severity, make_event
 from ..utils import which, eprint
 from .base import Collector, EventQueue
-from .parsers import parse_auth_line, parse_kernel_line, parse_firewall_line
+from .parsers import kernel_device, parse_auth_line, parse_kernel_line, parse_firewall_line
 
 
 # syslog PRIORITY → Severity
@@ -117,7 +117,12 @@ class JournalCollector(Collector):
         ident = rec.get("SYSLOG_IDENTIFIER") or rec.get("_COMM") or "unknown"
         hostname = rec.get("_HOSTNAME") or ""
         pid = self._int(rec.get("_PID"))
-        unit = rec.get("_SYSTEMD_UNIT", "")
+        unit_field = {"systemd-coredump": "COREDUMP_UNIT", "systemd": "UNIT"}.get(
+            ident, "_SYSTEMD_UNIT",
+        )
+        unit = rec.get(unit_field, "")
+        if not isinstance(unit, str):
+            unit = ""
         transport = rec.get("_TRANSPORT", "")
 
         # Detect category & possibly upgrade severity via shared parsers
@@ -161,6 +166,8 @@ class JournalCollector(Collector):
             protocol = fw.get("protocol")
             extra.update(fw.get("extra", {}))
 
+        if source == "kernel":
+            extra["device"] = kernel_device(message)
         return Event(
             ts=ts,
             source=source,

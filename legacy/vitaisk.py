@@ -298,8 +298,12 @@ def sample_vitals():
 
 
 def ipv4_connections():
-    rows = set()
-    for protocol, path in (("tcp", "/proc/net/tcp"), ("udp", "/proc/net/udp")):
+    rows = {}
+    tcp_states = {"01": "ESTAB", "02": "SYN-SENT", "03": "SYN-RECV", "0A": "LISTEN"}
+    tables = (("tcp", "/proc/net/tcp"), ("udp", "/proc/net/udp"),
+              ("tcp", "/proc/net/tcp6"), ("udp", "/proc/net/udp6"))
+    mapped = "0000000000000000FFFF0000"
+    for protocol, path in tables:
         try:
             lines = proc_lines(path)
         except IOError:
@@ -308,12 +312,16 @@ def ipv4_connections():
             fields = line.split()
             if len(fields) < 4:
                 continue
-            state = fields[3]
-            if protocol == "tcp" and state not in ("01", "02", "03"):
+            state = tcp_states.get(fields[3]) if protocol == "tcp" else "UNCONN"
+            if not state or (state != "LISTEN" and fields[2] == "00000000:0000"):
                 continue
-            if fields[2] == "00000000:0000":
-                continue
-            rows.add((protocol, fields[1], fields[2]))
+            local, peer = fields[1:3]
+            if path.endswith("6"):
+                # A dual-stack listener can accept IPv4 through a mapped IPv6 socket.
+                if not (local.startswith(mapped) and peer.startswith(mapped)):
+                    continue
+                local, peer = local[len(mapped):], peer[len(mapped):]
+            rows[(protocol, local, peer)] = state
     return rows
 
 
@@ -335,10 +343,11 @@ def bridge(paths=BRIDGE_PATHS):
             send_record("metrics", *sample_vitals())
             connections = ipv4_connections()
             if known[0] is not None:
-                for row in sorted(connections - known[0]):
-                    send_record("connection", "new", *row)
-                for row in sorted(known[0] - connections):
-                    send_record("connection", "closed", *row)
+                previous = known[0]
+                for row in sorted(set(connections) - set(previous)):
+                    send_record("connection", "new", *(row + (connections[row],)))
+                for row in sorted(set(previous) - set(connections)):
+                    send_record("connection", "closed", *(row + (previous[row],)))
             known[0] = connections
             next_sample[0] = now + 2.0
             return True
@@ -362,7 +371,7 @@ def packet_bridge():
             raise ValueError("Packet monitoring requires IPv4 SSH endpoints")
     import pwd
     user = pwd.getpwuid(os.getuid()).pw_name
-    packet_filter = "src host %s and dst host %s and tcp[13] & 18 = 2" % (peer, host)
+    packet_filter = "ip and dst host %s and tcp[13] & 18 = 2" % host
     password = sys.stdin.readline(4096)
     if not password.endswith("\n"):
         raise ValueError("Missing password for packet monitoring")

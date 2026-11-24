@@ -63,6 +63,9 @@ class Config:
     network_sniff_sample_rate: int = 10
     connections_enabled: bool = True
 
+    # opt-in structured telemetry and classified signals
+    signal_files: list[str] = field(default_factory=list)
+
     # detection
     baseline_enabled: bool = True
     baseline_window: int = 3600
@@ -92,12 +95,20 @@ class Config:
             if create:
                 cfg.save(path)
             return cfg
-        with open(path, "r", encoding="utf-8") as fh:
-            data = yaml.safe_load(fh) or {}
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                data = yaml.safe_load(fh)
+        except yaml.YAMLError as exc:
+            raise ValueError(f"config: invalid YAML in {path}") from exc
+        if data is None:
+            data = {}
+        if not isinstance(data, dict) or any(not isinstance(key, str) for key in data):
+            raise ValueError("config: expected a mapping of option names")
         cfg = cls()
-        for k, v in data.items():
-            if hasattr(cfg, k):
-                setattr(cfg, k, v)
+        names = {item.name for item in fields(cfg)}
+        for key, value in data.items():
+            if key in names:
+                setattr(cfg, key, value)
         cfg.validate()
         return cfg
 
@@ -111,6 +122,8 @@ class Config:
 
     # ── validation ──────────────────────────────────────────────
     def validate(self) -> None:
+        if self.lang not in ("auto", "en", "pt"):
+            raise ValueError("config: lang must be auto, en or pt")
         if self.sensitivity not in _VALID_SENSITIVITY:
             raise ValueError(f"config: sensitivity must be one of {_VALID_SENSITIVITY}")
         if self.mode not in _VALID_MODE:
@@ -121,6 +134,9 @@ class Config:
             value = getattr(self, key)
             if type(value) is not int or value < 1:
                 raise ValueError(f"config: {key} must be a positive integer")
+        if (not isinstance(self.signal_files, list) or len(self.signal_files) > 32
+                or not all(isinstance(path, str) and path.strip() for path in self.signal_files)):
+            raise ValueError("config: signal_files must contain up to 32 file paths")
         if not isinstance(self.profiles, dict):
             raise ValueError("config: profiles must be a mapping")
         allowed = {"view", "level", "sources", "grep", "ip", "ignore"}

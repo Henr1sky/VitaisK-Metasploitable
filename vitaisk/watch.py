@@ -3,6 +3,7 @@ from collections import Counter, deque
 from contextlib import contextmanager, nullcontext
 import codecs
 import os
+from pathlib import Path
 import re
 import select
 import signal
@@ -21,7 +22,7 @@ from .engine.pipeline import Pipeline
 from .engine.statistical import ErrorRates
 from .events import Severity
 from .i18n import current_lang
-from .rules.loader import load_rules
+from .rules.loader import load_correlations, load_priorities, load_rules
 from .sessions import SessionWriter
 from .utils import eprint
 
@@ -81,7 +82,8 @@ def _keyboard():
 
 
 def watch(config, console, *, mode, view, only_anomalies, min_level, sources, grep, ip,
-          ignore, sensitivity, save, profile, manager=None, baseline_name="baseline.json"):
+          ignore, sensitivity, save, profile, signal_files=(), manager=None,
+          baseline_name="baseline.json"):
     if profile is not None and profile not in config.profiles:
         raise ValueError(label("Unknown profile", "Perfil desconhecido") + f": {profile}")
     filters = ViewFilter.for_profile(
@@ -98,9 +100,25 @@ def watch(config, console, *, mode, view, only_anomalies, min_level, sources, gr
         except (OSError, KeyError, TypeError, ValueError):
             baseline = ErrorRates(config.baseline_window, config.anomaly_z_threshold,
                                   config.max_events_in_memory)
+    rules = load_rules()
+    correlations = load_correlations()
+    signal_files = tuple(dict.fromkeys(Path(path).expanduser().absolute()
+                                      for path in (*config.signal_files, *signal_files)))
+    if len(signal_files) > 32:
+        raise ValueError(label("At most 32 signal files may be followed",
+                               "É possível acompanhar até 32 arquivos de sinais"))
+    if signal_files:
+        from .collectors.signals import SignalCollector
+        from .rules.loader import signal_levels
+
+        allowed = signal_levels(rules, correlations)
+        for path in signal_files:
+            manager.collectors.append(SignalCollector(
+                manager.queue, config, manager.stop_event, path, allowed,
+            ))
     pipeline = Pipeline(
-        load_rules(), config.max_events_in_memory, sensitivity or config.sensitivity,
-        config.dedup_window, baseline,
+        rules, config.max_events_in_memory, sensitivity or config.sensitivity,
+        config.dedup_window, baseline, correlations=correlations, priorities=load_priorities(),
     )
     recording = config.save_sessions if save is None else save
     writer = SessionWriter(config) if recording else None

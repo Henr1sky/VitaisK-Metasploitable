@@ -11,7 +11,7 @@ Monitoramento do **Metasploitable 2** em uma rede isolada. O painel legado roda 
 
 ## Preparar o laboratório
 
-No VirtualBox, conecte o Metasploitable 2 apenas a um adaptador **Host-only**. Para monitorar pelo Kali, conecte o Kali à mesma rede Host-only. Mantenha a VM sem rota padrão, adaptador NAT, bridge ou redirecionamento de portas.
+No VirtualBox, conecte o Metasploitable 2 apenas a uma **rede interna ou Host-only**. Para monitorar pelo Kali, conecte o Kali à mesma rede isolada. Mantenha a VM sem rota padrão, adaptador NAT, bridge ou redirecionamento de portas.
 
 | Endereço padrão do laboratório | Valor |
 | --- | --- |
@@ -104,11 +104,13 @@ Para endereços ou usuários diferentes, use `--lab-host`, `--lab-bind` e `--lab
 No Kali, ative o coletor de pacotes da VM quando quiser observar tentativas de conexão TCP, inclusive quando `/var/log` estiver parado:
 
 ```sh
-# Mostre tentativas TCP do Kali para a VM na rede isolada.
-.venv/bin/vitaisk --lang pt watch --metasploitable --lab-packets --mode dashboard --view all
+# Mostre tentativas TCP recebidas pela VM e grave a sessão no Kali.
+.venv/bin/vitaisk --lang pt watch --metasploitable --lab-packets --mode dashboard --view all --save
 ```
 
-O monitor pede a senha para `sudo` na VM e usa o `tcpdump` que já está instalado nela. Ele produz eventos com os endereços e as portas dos pacotes SYN enviados do Kali para a VM. Doze portas de destino distintas em até dez segundos geram o alerta `tcp-syn-many-ports`. A opção acompanha apenas novas tentativas TCP desse par de endereços e independe da gravação em `/var/log`.
+O monitor pede a senha para `sudo` na VM e usa o `tcpdump` que já está instalado nela. Ele produz eventos com os endereços e as portas dos pacotes SYN IPv4 recebidos no endereço da VM. Doze portas de destino distintas em até dez segundos geram o alerta `tcp-syn-many-ports`. A coleta de SYN independe da gravação em `/var/log`.
+
+Falhas de senha, chave pública ou usuário inválido no SSH geram o alerta `lab-ssh-access-denied`. Use **Anomalias** para ver alertas e correlações, ou **Todos** para ver também as conexões. [Regras, correlações e fontes do laboratório](legacy/README.md#tentativas-de-acesso-e-correlações).
 
 ## Onde os logs ficam salvos
 
@@ -125,7 +127,7 @@ Abrir o painel nativo em um terminal SSH também mantém a execução e os logs 
 | --- | --- |
 | O painel da VM mostra `Error opening terminal: xterm-256color` | Execute o comando com `TERM=xterm`, como no exemplo acima. |
 | O painel abre, mas os logs ficam parados | Rode o diagnóstico e confira se a raiz da VM está somente para leitura. Os logs existentes e as métricas continuam acessíveis. Novos eventos em `/var/log` dependem de gravação no disco. |
-| O Kali não conecta | Confira a rede Host-only, os endereços, a chave SSH e a ausência de uma rota padrão na VM. |
+| O Kali não conecta | Confira a rede isolada, os endereços, a chave SSH e a ausência de uma rota padrão na VM. |
 | Firewall ou auditoria não aparecem | Essas fontes dependem de arquivos configurados e legíveis na VM. |
 
 A compatibilidade foi verificada em uma VM i686 com Ubuntu 8.04, kernel 2.6.24 e Python 2.5.2. Para detalhes sobre fontes disponíveis, limites de captura e o estado do disco do laboratório, consulte o [guia técnico](legacy/README.md).

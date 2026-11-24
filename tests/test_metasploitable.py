@@ -46,6 +46,21 @@ class MetasploitableTests(unittest.TestCase):
         self.assertEqual(event.src_ip, "192.168.56.102")
         self.assertEqual(event.dst_port, 22)
 
+    def test_guest_reads_ipv4_sockets_mapped_into_tcp6(self):
+        mapped = "0000000000000000FFFF0000"
+        rows = {
+            "/proc/net/tcp6": [
+                "header",
+                f"0: {mapped}6538A8C0:0016 {mapped}6638A8C0:ABCD 01",
+                "1: 00000000000000000000000000000000:0016 "
+                "00000000000000000000000000000000:0000 0A",
+            ],
+        }
+        with patch.object(guest, "proc_lines", side_effect=lambda path: rows.get(path, [])):
+            self.assertEqual(guest.ipv4_connections(), {
+                ("tcp", "6538A8C0:0016", "6638A8C0:ABCD"): "ESTAB",
+            })
+
     def test_rejects_default_route_and_public_destination_before_ssh(self):
         with patch("vitaisk.metasploitable.subprocess.check_output") as query:
             with self.assertRaises(ValueError):
@@ -57,11 +72,13 @@ class MetasploitableTests(unittest.TestCase):
 
     def test_passive_syn_rule_counts_distinct_guest_ports(self):
         collector = LabPacketCollector(
-            self.queue, Config(), None, [], "192.168.56.101", "192.168.56.102", bytearray(),
+            self.queue, Config(), None, [], "192.168.56.101", bytearray(),
         )
         rule = load_rules()["tcp-syn-many-ports"]
         pipeline = Pipeline({rule["id"]: rule})
-        self.assertIsNone(collector._parse("1700000000.01 IP 192.0.2.1.33333 > 192.168.56.101.22: S"))
+        other_peer = collector._parse("1700000000.01 IP 192.0.2.1.33333 > 192.168.56.101.22: S")
+        self.assertEqual(other_peer.src_ip, "192.0.2.1")
+        self.assertIsNone(collector._parse("1700000000.01 IP 192.0.2.1.33333 > 192.168.56.100.22: S"))
         old_format = "1700000000.01 IP 192.168.56.102.33333 > 192.168.56.101.22: S"
         for _ in range(15):
             self.assertFalse(list(pipeline.process(collector._parse(old_format))))

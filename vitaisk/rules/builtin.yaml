@@ -14,6 +14,11 @@
   source: kernel
   category: segfault
   severity: ERROR
+- id: lab-ssh-access-denied
+  source: auth
+  category: [ssh_failed, ssh_key_failed, ssh_invalid_user]
+  equals: {extra.lab_vm: true}
+  severity: WARN
 - id: ssh-brute-force
   source: auth
   category: ssh_failed
@@ -65,31 +70,6 @@
   threshold: 12
   window: 10
   severity: WARN
-- id: scan-tcp-syn-high
-  source: network
-  category: syn
-  equals: {protocol: tcp}
-  group_by: [src_ip, dst_ip]
-  distinct: dst_port
-  threshold: 30
-  window: 10
-  severity: WARN
-- id: scan-tcp-syn-threshold
-  source: network
-  category: syn
-  equals: {protocol: tcp}
-  group_by: [src_ip]
-  threshold: 20
-  window: 60
-  severity: WARN
-- id: scan-tcp-syn-aggressive
-  source: network
-  category: syn
-  equals: {protocol: tcp}
-  group_by: [src_ip]
-  threshold: 100
-  window: 10
-  severity: CRITICAL
 - id: tcp-syn-many-ports-then-ssh-fail
   source: network
   category: syn
@@ -290,3 +270,162 @@
   source: kernel
   regex: 'invalid ICMP type|ICMP.*bad checksum'
   severity: INFO
+- id: service-crash-loop
+  source: system
+  category: systemd
+  contains: ["scheduled restart job"]
+  group_by: [host, extra.unit]
+  threshold: 13
+  window: 600
+  severity: ERROR
+- id: service-oom-kill
+  source: system
+  category: systemd
+  contains: ["failed with result 'oom-kill'"]
+  severity: ERROR
+- id: service-exit-sigsegv
+  source: system
+  category: systemd
+  regex: 'main process exited, code=(?:killed|dumped), status=\d+/SEGV\b'
+  severity: ERROR
+- id: ssh-key-auth-fail
+  source: auth
+  category: ssh_key_failed
+  group_by: [host, src_ip]
+  threshold: 3
+  window: 60
+  severity: WARN
+- id: scan-tcp-syn-high
+  source: network
+  category: syn
+  group_by: [host, src_ip]
+  distinct: dst_port
+  threshold: 30
+  window: 10
+  severity: WARN
+- id: scan-tcp-syn-threshold
+  source: network
+  category: syn
+  group_by: [host, src_ip]
+  threshold: 20
+  window: 60
+  severity: WARN
+- id: scan-tcp-syn-aggressive
+  source: network
+  category: syn
+  group_by: [host, src_ip]
+  threshold: 100
+  window: 10
+  severity: CRITICAL
+- id: burst-half-open
+  source: network
+  category: syn
+  group_by: [host, src_ip]
+  threshold: 30
+  window: 10
+  severity: WARN
+- id: burst-syn-flood
+  source: network
+  category: syn
+  group_by: [host, dst_ip]
+  threshold: 1000
+  window: 10
+  severity: CRITICAL
+- id: burst-syn-flood-threshold
+  source: network
+  category: syn
+  group_by: [host, src_ip]
+  threshold: 20
+  window: 1
+  severity: CRITICAL
+- id: service-exit-sigkill
+  source: system
+  category: systemd
+  regex: 'main process exited, code=killed, status=\d+/KILL\b'
+  severity: ERROR
+
+- id: service-unit-not-found
+  source: system
+  category: systemd
+  regex: '\bunit\s+\S+\.service\s+not found\b'
+  severity: ERROR
+
+- id: mount-fail
+  source: system
+  category: systemd
+  regex: '\b\S+\.mount: Failed with result\b'
+  severity: ERROR
+
+- id: socket-accept-fail
+  source: system
+  category: systemd
+  regex: '\b\S+\.socket: Failed to accept\b'
+  severity: ERROR
+
+- id: timer-fail
+  source: system
+  category: systemd
+  regex: '\b\S+\.timer: Failed with result\b'
+  severity: ERROR
+
+- id: sudoers-modified
+  source: audit
+  category: syscall
+  equals: {extra.key: vitaisk_sudoers_write, extra.success: 'yes'}
+  severity: CRITICAL
+
+- id: pam-config-modified
+  source: audit
+  category: syscall
+  equals: {extra.key: vitaisk_pam_write, extra.success: 'yes'}
+  severity: CRITICAL
+
+- id: sshd-config-modified
+  source: audit
+  category: syscall
+  equals: {extra.key: vitaisk_sshd_write, extra.success: 'yes'}
+  severity: CRITICAL
+
+- id: authorized-keys-modified
+  source: audit
+  category: syscall
+  equals: {extra.key: vitaisk_authorized_keys_write, extra.success: 'yes'}
+  severity: CRITICAL
+
+- id: passwd-shadow-modified
+  source: audit
+  category: syscall
+  equals: {extra.key: vitaisk_shadow_write, extra.success: 'yes'}
+  severity: WARN
+
+- id: auth-lockout
+  source: auth
+  category: pam_lockout
+  severity: WARN
+
+- id: burst-connections-50
+  source: network
+  category: new_connection
+  equals: {protocol: tcp, extra.first_seen: true}
+  regex: '^TCP (?!LISTEN\b)[A-Z-]+ '
+  group_by: [host, src_ip]
+  threshold: 50
+  window: 10
+  severity: WARN
+
+- id: burst-connections-200
+  source: network
+  category: new_connection
+  equals: {protocol: tcp, extra.first_seen: true}
+  regex: '^TCP (?!LISTEN\b)[A-Z-]+ '
+  group_by: [host, src_ip]
+  threshold: 200
+  window: 10
+  severity: CRITICAL
+
+- id: shell-bind-port
+  source: network
+  category: new_connection
+  equals: {protocol: tcp, extra.state: LISTEN, extra.first_seen: true}
+  regex: '^TCP LISTEN \S+:(?:4444|1337|31337|5555)\s'
+  severity: WARN

@@ -200,8 +200,9 @@ class MetasploitableCollector(MetricsCollector):
             event = parser._handle_line(_CONTROL.sub("?", raw))
             if event:
                 event.ts = int(timestamp)
-                if event.source == "auth" and event.category in ("ssh_failed", "ssh_login"):
+                if event.source == "auth" and event.category in ("ssh_failed", "ssh_key_failed", "ssh_invalid_user", "ssh_login"):
                     event.dst_ip = event.dst_ip or self.host
+                    event.extra["lab_vm"] = True
                 event.extra.setdefault("collector", parser.name)
                 self.emit(event)
         elif kind == "connection":
@@ -262,20 +263,25 @@ class MetasploitableCollector(MetricsCollector):
             extra={"process_count": processes}, message=f"process count {processes}",
         )
 
-    def _connection(self, change: str, protocol: str, local: str, peer: str) -> None:
+    def _connection(self, change: str, protocol: str, local: str, peer: str,
+                    state: str = "UNKNOWN") -> None:
         if not self.config.connections_enabled:
             return
         if change not in ("new", "closed") or protocol not in ("tcp", "udp"):
             raise ValueError("Invalid VM connection record")
         local_ip, local_port = _endpoint(local)
         peer_ip, peer_port = _endpoint(peer)
+        if state not in ("ESTAB", "SYN-SENT", "SYN-RECV", "LISTEN", "UNCONN", "UNKNOWN"):
+            raise ValueError("Invalid VM connection state")
         peer_address = ipaddress.IPv4Address(peer_ip)
         self.emit(make_event(
             source="network", category=f"{change}_connection",
             severity=Severity.INFO if change == "new" else Severity.DEBUG,
-            message=f"{protocol.upper()} {local_ip}:{local_port} → {peer_ip}:{peer_port}",
-            protocol=protocol, src_ip=peer_ip, dst_ip=local_ip, dst_port=local_port,
-            extra={"peer_ip": peer_ip, "peer_port": peer_port, "local_ip": local_ip,
+            message=f"{protocol.upper()} {state} {local_ip}:{local_port} → {peer_ip}:{peer_port}",
+            protocol=protocol, src_ip=peer_ip if peer_port else None, dst_ip=local_ip,
+            dst_port=local_port,
+            extra={"state": state, "first_seen": change == "new",
+                   "peer_ip": peer_ip, "peer_port": peer_port, "local_ip": local_ip,
                    "local_port": local_port, "external": peer_address.is_global},
         ))
 
@@ -288,16 +294,15 @@ _SYN_LINE = re.compile(
 
 
 class LabPacketCollector(Collector):
-    """Observe TCP connection attempts from Kali at the VM interface."""
+    """Observe inbound TCP connection attempts at the VM interface."""
 
     name = "metasploitable-packets"
     source = "network"
 
-    def __init__(self, queue, config, stop_event, command, host, bind, password):
+    def __init__(self, queue, config, stop_event, command, host, password):
         super().__init__(queue, config, stop_event)
         self.command = command
         self.host = host
-        self.bind = bind
         self.password = password
         self.process = None
 
@@ -321,7 +326,7 @@ class LabPacketCollector(Collector):
                     if line == b"packet-ready\n":
                         event = make_event(
                             source="network", category="lab_packet_monitor", severity=Severity.INFO,
-                            message=f"TCP SYN monitor active for {self.bind} → {self.host}",
+                            message=f"Inbound TCP SYN monitor active for {self.host}",
                             host=self.host, extra={"lab_host": self.host},
                         )
                     else:
@@ -353,12 +358,16 @@ class LabPacketCollector(Collector):
 
     def _parse(self, line):
         match = _SYN_LINE.match(line)
-        if not match or match["src"] != self.bind or match["dst"] != self.host:
+        if not match or match["dst"] != self.host:
+            return None
+        try:
+            src = str(ipaddress.IPv4Address(match["src"]))
+        except ipaddress.AddressValueError:
             return None
         return make_event(
             source="network", category="syn", severity=Severity.INFO,
-            message=f"TCP SYN {self.bind}:{match['sport']} → {self.host}:{match['dport']}",
-            ts=float(match["time"]), host=self.host, src_ip=self.bind, dst_ip=self.host,
+            message=f"TCP SYN {src}:{match['sport']} → {self.host}:{match['dport']}",
+            ts=float(match["time"]), host=self.host, src_ip=src, dst_ip=self.host,
             dst_port=int(match["dport"]), protocol="tcp",
             extra={"src_port": int(match["sport"]), "lab_host": self.host, "flags": "S"},
         )
@@ -375,7 +384,7 @@ def lab_manager(config, host: str, bind: str, user: str, *, packets: bool = Fals
         def collectors(settings, queue, stop):
             sources = [MetasploitableCollector(queue, settings, stop, command, host)]
             if packets:
-                sources.append(LabPacketCollector(queue, settings, stop, command, host, bind, password))
+                sources.append(LabPacketCollector(queue, settings, stop, command, host, password))
             return sources
 
         manager = CollectorManager(config, build=collectors)
