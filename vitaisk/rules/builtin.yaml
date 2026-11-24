@@ -56,6 +56,15 @@
   source: auth
   category: user_removed
   severity: WARN
+- id: tcp-syn-many-ports
+  source: network
+  category: syn
+  equals: {protocol: tcp}
+  group_by: [src_ip, dst_ip]
+  distinct: dst_port
+  threshold: 12
+  window: 10
+  severity: WARN
 - id: firewall-port-scan-tcp
   source: firewall
   category: firewall_block
