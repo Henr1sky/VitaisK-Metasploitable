@@ -12,7 +12,9 @@ from rich.table import Table
 from rich.text import Text
 
 from .collectors import MetricsCollector
+from .engine.priorities import hidden_by_priority, presentation_severity
 from .events import SOURCES, Severity
+from .telemetry import SignalEvent
 from .i18n import _, current_lang, set_lang
 from .utils import short_ts
 
@@ -36,8 +38,9 @@ def severity_name(level):
 
 
 def effective_level(event, alerts):
-    alert_level = max((alert.severity for alert in alerts), default=event.severity)
-    return max(event.severity, alert_level)
+    raw_level = Severity.INFO if isinstance(event, SignalEvent) else event.severity
+    visible = (presentation_severity(alert) for alert in alerts if not hidden_by_priority(alert))
+    return max(raw_level, max(visible, default=raw_level))
 
 
 def view_name(view):
@@ -103,9 +106,10 @@ class ViewFilter:
         if any(pattern.search(event.message) for pattern in self.ignore):
             return False
         level = effective_level(event, alerts)
-        if self.view == "anomalies" and not alerts:
+        visible_alert = any(not hidden_by_priority(alert) for alert in alerts)
+        if self.view == "anomalies" and not visible_alert:
             return False
-        if self.view == "important" and not alerts and level < Severity.WARN:
+        if self.view == "important" and not visible_alert and level < Severity.WARN:
             return False
         return level >= self.min_level
 
@@ -126,13 +130,28 @@ def _alert_text(alert):
     if alert.suggested_actions:
         actions = ", ".join(alert.suggested_actions)
         message += f" [{label('suggested', 'sugerido')}: {actions}]"
-    return Text(_clean(message), style=PALETTE[alert.severity])
+    for item in alert.triage:
+        if item["action"] == "human_review":
+            message += " · " + label("Human review required", "Revisão humana necessária")
+        elif item["action"] == "group":
+            message += f" · {label('Incident', 'Incidente')} {item['incident_id']}"
+    return Text(_clean(message), style=PALETTE[presentation_severity(alert)])
+
+
+def _display_alerts(alerts):
+    visible = [alert for alert in alerts if not hidden_by_priority(alert)]
+    superseded = {rule for alert in visible for rule in alert.supersedes}
+    return sorted(
+        (alert for alert in visible if alert.rule_id not in superseded),
+        key=lambda alert: (bool(alert.evidence), presentation_severity(alert)),
+        reverse=True,
+    )
 
 
 def event_row(event, alerts):
     level = effective_level(event, alerts)
     message = Text()
-    for alert in alerts:
+    for alert in _display_alerts(alerts):
         if message:
             message.append("  ·  ", "dim")
         message.append_text(_alert_text(alert))
@@ -203,7 +222,18 @@ class Dashboard:
 
     def _entries(self, recent):
         history = self.frozen if self.frozen is not None else recent
-        return (entry for entry in reversed(history) if self.filters.matches(*entry))
+        seen = set()
+        for event, alerts in reversed(history):
+            if not self.filters.matches(event, alerts):
+                continue
+            if self.filters.view == "anomalies":
+                visible = _display_alerts(alerts)
+                incidents = [next((item["incident_id"] for item in alert.triage
+                                   if item["action"] == "group"), None) for alert in visible]
+                if incidents and all(incident in seen for incident in incidents):
+                    continue
+                seen.update(incident for incident in incidents if incident is not None)
+            yield event, alerts
 
     def handle(self, key, recent):
         if self.editor:
@@ -482,7 +512,7 @@ class Dashboard:
         metadata = Text.assemble(time, "  ", level, "  ", source, "  ", _clean(event.category))
         addresses = " → ".join(address for address in (event.src_ip, event.dst_ip) if address)
         group = [metadata, Text(_clean(" · ".join(v for v in (event.host, event.user, addresses) if v)), "dim")]
-        for alert in alerts[:max(1, (height - 15) // 2)]:
+        for alert in _display_alerts(alerts)[:max(1, (height - 15) // 2)]:
             sources = ", ".join(_("src." + source) for source in alert.sources_matched)
             group.extend((_alert_text(alert), Text(
                 f"{label('Evidence', 'Evidências')}: {alert.event_count} · {sources} · "
@@ -514,6 +544,9 @@ class Dashboard:
                 ("● " + state, "bright_green" if alive else "bright_yellow"),
                 "   ", (collector["name"], "bold"), f"   {collector['events']}",
             )
+            if collector.get("rejected"):
+                row.append(f"   {collector['rejected']} " + label("rejected", "rejeitados"),
+                           "bright_yellow")
             if collector["error"]:
                 row.append("   " + _clean(collector["error"]), "bright_red")
             rows.append(row)

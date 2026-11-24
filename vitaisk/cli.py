@@ -71,9 +71,7 @@ def _not_implemented(part: str) -> None:
 
 def _load_config(ctx: click.Context, lang: str, config_path: str | None) -> Config:
     cfg = Config.load(Path(config_path) if config_path else None)
-    if lang and lang != "auto":
-        cfg.lang = lang
-    set_lang(cfg.lang)
+    set_lang(lang if lang and lang != "auto" else cfg.lang)
     return cfg
 
 
@@ -198,7 +196,7 @@ def cmd_config() -> None:
 def config_path(ctx: click.Context) -> None:
     """Print config and data directory paths."""
     cfg = _load_config(ctx, ctx.obj["lang"], ctx.obj["config_path"])
-    click.echo(str(cfg.path()))
+    click.echo(str(ctx.obj["config_path"] or cfg.path()))
     click.echo(str(cfg.data_path()))
 
 
@@ -227,7 +225,7 @@ def config_set(ctx: click.Context, key: str, value: str) -> None:
     except ValueError as e:
         err_console.print(f"[red]✗[/] {_('config.invalid_value', key=key, value=value)}: {e}")
         sys.exit(2)
-    path = cfg.save()
+    path = cfg.save(Path(ctx.obj["config_path"]) if ctx.obj["config_path"] else None)
     console.print(f"[green]✓[/] {_('config.saved', path=path)}")
 
 
@@ -238,7 +236,7 @@ def config_reset(ctx: click.Context) -> None:
     """Restore configuration to defaults."""
     cfg = _load_config(ctx, ctx.obj["lang"], ctx.obj["config_path"])
     cfg.reset()
-    path = cfg.save()
+    path = cfg.save(Path(ctx.obj["config_path"]) if ctx.obj["config_path"] else None)
     console.print(f"[green]✓[/] {_('config.reset')} ({path})")
 
 
@@ -267,6 +265,9 @@ def cmd_lab_doctor(lab_host, lab_bind, lab_user):
 @cli.command("watch")
 @option("--mode", type=click.Choice(["dashboard", "stream"]), default=None,
               help="UI mode (overrides config).")
+@option("--signal-file", "signal_files", multiple=True,
+        type=click.Path(dir_okay=False, readable=True, path_type=Path),
+        help="Follow a trusted JSONL file of observations or classified signals. Repeatable.")
 @option("--profile", help="Use a named filter profile from config.")
 @option("--view", type=click.Choice(["important", "all", "anomalies"]),
         help="Select which events to display.")
@@ -453,15 +454,63 @@ def rules_list() -> None:
         click.echo(rule_id)
 
 
+@cmd_rules.command("correlations")
+def rules_correlations() -> None:
+    """List executable correlations and their input requirements."""
+    from .rules.loader import load_correlations, rule_input
+
+    rules = _rules()
+    for entry in load_correlations():
+        signals = entry["requires"]
+        external = [signal for signal in signals if rule_input(rules.get(signal)) == "external"]
+        structured = [signal for signal in signals if rule_input(rules.get(signal)) == "structured"]
+        if external:
+            status = "external classification: " + ", ".join(external)
+        elif structured:
+            status = "structured telemetry: " + ", ".join(structured)
+        elif entry["requires_scope"]:
+            status = "shared scope required"
+        else:
+            status = "native"
+        click.echo(f"{entry['id']}  {status}")
+
+
+@cmd_rules.command("coverage")
+def rules_coverage() -> None:
+    """List native and externally supplied detection identifiers."""
+    from .rules.loader import load_correlations, rule_input, signal_levels
+
+    rules = _rules()
+    for rule_id in sorted(signal_levels(rules, load_correlations())):
+        click.echo(f"{rule_id}  {rule_input(rules.get(rule_id))}")
+
+
+@cmd_rules.command("priorities")
+def rules_priorities() -> None:
+    """List alert triage policies."""
+    from .rules.loader import load_priorities
+
+    for rule in load_priorities():
+        click.echo(f"{rule['id']}  {rule['action']}  {rule['when']}")
+
+
 @cmd_rules.command("show")
 @click.argument("rule_id")
 def rules_show(rule_id: str) -> None:
     """Show a rule's definition."""
     import yaml
+    from .rules.loader import load_correlations, load_priorities, signal_levels
 
-    rule = _rules().get(rule_id)
+    rules = _rules()
+    correlations = load_correlations()
+    rule = rules.get(rule_id) or next(
+        (entry for entry in [*correlations, *load_priorities()] if entry["id"] == rule_id), None,
+    )
     if rule is None:
-        raise click.ClickException(f"{_('rules.not_found')}: {rule_id}")
+        external = signal_levels(rules, correlations).get(rule_id)
+        if external is None:
+            raise click.ClickException(f"{_('rules.not_found')}: {rule_id}")
+        rule = {"id": rule_id, "input": "external", **external}
     click.echo(yaml.safe_dump(rule, sort_keys=False, allow_unicode=True), nl=False)
 
 
@@ -478,13 +527,21 @@ def rules_test(sample: str, source: str | None) -> None:
 
     journal = JournalCollector(EventQueue(1), Config())
 
-    pipeline = Pipeline(_rules())
+    from .rules.loader import load_correlations, load_priorities, signal_levels
+    from .telemetry import telemetry_from_record
+
+    rules = _rules()
+    correlations = load_correlations()
+    allowed = signal_levels(rules, correlations)
+    pipeline = Pipeline(rules, correlations=correlations, priorities=load_priorities())
 
     def parse(line):
         if line.lstrip().startswith("{"):
             data = json.loads(line)
             if not isinstance(data, dict):
                 raise ValueError("expected a JSON object")
+            if data.get("record_type") in ("event", "signal"):
+                return telemetry_from_record(data, allowed, line)
             if "MESSAGE" in data:
                 return journal._to_event(data)
             return Event.from_dict(data)
@@ -505,7 +562,7 @@ def rules_test(sample: str, source: str | None) -> None:
                 if event is not None:
                     for anomaly in pipeline.process(event, current_lang()):
                         click.echo(json.dumps(anomaly.to_dict(), ensure_ascii=False))
-    except (KeyError, TypeError, ValueError) as exc:
+    except (KeyError, TypeError, ValueError, RecursionError) as exc:
         raise click.ClickException(str(exc)) from exc
 
 
