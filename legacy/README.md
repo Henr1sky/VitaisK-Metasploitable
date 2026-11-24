@@ -26,16 +26,16 @@ O painel mostra eventos e métricas **da VM**. Use `--source auth` para focar em
 
 O estado estatístico do laboratório é mantido por endereço da VM, separado do monitor local. Os registros das sessões identificam a origem em `extra.lab_host`.
 
-### Monitoramento passivo de TCP
+### Atividade de rede ao vivo
 
-No Kali, ative o coletor de pacotes da VM quando quiser observar tentativas de conexão TCP, inclusive quando `/var/log` estiver parado:
+No Kali, ative o coletor de pacotes da VM para observar SYN TCP, datagramas UDP e pedidos de ping IPv4, inclusive quando `/var/log` estiver parado:
 
 ```sh
-# Mostre tentativas TCP recebidas pela VM na rede isolada.
+# Mostre sondagens de rede recebidas pela VM na rede isolada.
 .venv/bin/vitaisk --lang pt watch --metasploitable --lab-packets --mode dashboard --view all
 ```
 
-O monitor pede a senha para `sudo` na VM e usa o `tcpdump` que já está instalado nela. Ele produz eventos com os endereços e as portas dos pacotes SYN IPv4 recebidos no endereço da VM, inclusive de outros participantes da rede isolada. Doze portas de destino distintas em até dez segundos geram o alerta `tcp-syn-many-ports`. A opção registra metadados dos SYN de entrada e agrupa alertas por IP de origem e independe da gravação em `/var/log`.
+O monitor pede a senha para `sudo` na VM e usa o `tcpdump` instalado nela. Um ping recebido aparece como `INFO` na aba **Todos**. Se uma origem sondar seis portas distintas da mesma VM, com o mesmo protocolo (TCP ou UDP), em até 30 segundos, o painel mostra **Possível varredura de portas** em **Importantes** e **Anomalias**. A regra identifica o padrão do tráfego. A ferramenta que o gerou não é identificada pelos pacotes. A coleta independe de `/var/log`.
 
 ### Tentativas de acesso e correlações
 
@@ -48,12 +48,12 @@ Uma falha de senha, chave pública ou usuário inválido no SSH gera o alerta `l
 | `inbound-scan-then-ssh-fail` | Bloqueios TCP a portas distintas no firewall, seguidos de falha de SSH da mesma origem e no mesmo host. |
 | `tcp-syn-many-ports-then-ssh-fail` | Tentativas TCP em várias portas da VM, seguidas de falha de SSH para o mesmo par de endereços. Use `--lab-packets` para alimentar essa regra. |
 
-O coletor lê os arquivos no Metasploitable 2. Bloqueios do firewall podem chegar pelo `kern.log` mesmo sem um arquivo exclusivo de firewall. A captura passiva é uma fonte separada e observa os SYN IPv4 recebidos no endereço da VM. O SSH transporta os dados e o motor no Kali aplica as regras. No painel, pressione `3` para abrir **Anomalias** e `Enter` para ver as fontes e a contagem da correlação.
+O coletor lê os arquivos no Metasploitable 2. Bloqueios do firewall podem chegar pelo `kern.log` mesmo sem um arquivo exclusivo de firewall. A captura passiva é uma fonte separada e observa SYN TCP, UDP e pedidos de ping IPv4 recebidos no endereço da VM. O SSH transporta os dados e o motor no Kali aplica as regras. No painel, pressione `3` para abrir **Anomalias** e `Enter` para ver as fontes e a contagem da correlação.
 
 O motor também avalia o catálogo de correlações do VitaisK original. Cada regra depende da chegada de suas fontes. A VM oferece autenticação, syslog, kernel, métricas e conexões. Firewall e auditd dependem de logs disponíveis e legíveis. Regras que dependem de telemetria estruturada ou classificação externa podem receber eventos de um produtor confiável no Kali por `--signal-file`. Consulte o formato no [VitaisK original](https://github.com/Henr1sky/VitaisK/blob/main/docs/telemetry.md).
 
 ```sh
-# Abra o painel com o monitor TCP da VM e grave a sessão no Kali.
+# Abra o painel com o monitor de rede da VM e grave a sessão no Kali.
 .venv/bin/vitaisk --lang pt watch --metasploitable --lab-packets --view all --save
 
 # Liste as correlações e a telemetria que cada uma exige.

@@ -145,9 +145,9 @@ class NativeRuleCoverageTests(TestCase):
                     )[0]
                     values = {
                         "host": "host", "user": "example", "src_ip": "192.0.2.1",
-                        "dst_ip": "192.0.2.2", "dst_port": port,
+                        "dst_ip": "192.0.2.2", "dst_port": port, "protocol": "tcp",
                     }
-                    extra = {"unit": "example.service"}
+                    extra = {"unit": "example.service", "lab_host": "192.0.2.2"}
                     for name, value in selector.get("equals", {}).items():
                         if name.startswith("extra."):
                             extra[name[6:]] = value

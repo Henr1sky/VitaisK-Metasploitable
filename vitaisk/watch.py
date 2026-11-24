@@ -123,7 +123,8 @@ def watch(config, console, *, mode, view, only_anomalies, min_level, sources, gr
     recording = config.save_sessions if save is None else save
     writer = SessionWriter(config) if recording else None
     dashboard = (mode or config.mode) == "dashboard" and console.is_terminal
-    recent = deque(maxlen=config.max_events_in_memory)
+    histories = {view: deque(maxlen=config.max_events_in_memory)
+                 for view in ("all", "important", "anomalies")}
     screen = Dashboard(config, filters) if dashboard else None
     activity = deque([PulseSample()] * 48, maxlen=48)
     tick_level = Severity.INFO
@@ -144,7 +145,12 @@ def watch(config, console, *, mode, view, only_anomalies, min_level, sources, gr
             tick_count += 1
             tick_level = max(tick_level, level)
             alert_total += len(alerts)
-            recent.append((event, alerts))
+            entry = (event, alerts)
+            histories["all"].append(entry)
+            if alerts or level >= Severity.WARN:
+                histories["important"].append(entry)
+            if alerts:
+                histories["anomalies"].append(entry)
         elif filters.matches(event, alerts):
             console.print(*event_row(event, alerts))
 
@@ -180,7 +186,7 @@ def watch(config, console, *, mode, view, only_anomalies, min_level, sources, gr
                 if screen is not None:
                     keys = read_keys()
                     for key in keys:
-                        if not screen.handle(key, recent):
+                        if not screen.handle(key, histories[screen.filters.view]):
                             stop_requested = True
                             break
                     if stop_requested:
@@ -188,7 +194,7 @@ def watch(config, console, *, mode, view, only_anomalies, min_level, sources, gr
                     if now - last_refresh >= 1 / config.refresh_hz or keys:
                         samples = [*activity, PulseSample(tick_count, tick_level)]
                         live.update(screen.render(
-                            console, manager, recent, samples, severity_counts, alert_total, recording,
+                            console, manager, histories[screen.filters.view], samples, severity_counts, alert_total, recording,
                         ), refresh=True)
                         last_refresh = now
     except KeyboardInterrupt:

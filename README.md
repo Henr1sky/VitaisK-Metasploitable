@@ -99,16 +99,16 @@ python3 -m venv .venv
 
 Para endereços ou usuários diferentes, use `--lab-host`, `--lab-bind` e `--lab-user`, tanto no diagnóstico quanto no monitor. O monitor executa o coletor em memória na VM e usa **uma conexão SSH** para transportar as fontes disponíveis. Por isso, o painel pode mostrar um coletor ativo mesmo recebendo dados de várias fontes.
 
-### Atividade TCP ao vivo
+### Atividade de rede ao vivo
 
-No Kali, ative o coletor de pacotes da VM quando quiser observar tentativas de conexão TCP, inclusive quando `/var/log` estiver parado:
+No Kali, ative o coletor de pacotes da VM para observar SYN TCP, datagramas UDP e pedidos de ping IPv4, inclusive quando `/var/log` estiver parado:
 
 ```sh
-# Mostre tentativas TCP recebidas pela VM e grave a sessão no Kali.
+# Mostre sondagens de rede recebidas pela VM e grave a sessão no Kali.
 .venv/bin/vitaisk --lang pt watch --metasploitable --lab-packets --mode dashboard --view all --save
 ```
 
-O monitor pede a senha para `sudo` na VM e usa o `tcpdump` que já está instalado nela. Ele produz eventos com os endereços e as portas dos pacotes SYN IPv4 recebidos no endereço da VM. Doze portas de destino distintas em até dez segundos geram o alerta `tcp-syn-many-ports`. A coleta de SYN independe da gravação em `/var/log`.
+O monitor pede a senha para `sudo` na VM e usa o `tcpdump` instalado nela. Um ping recebido aparece como `INFO` na aba **Todos**. Se uma origem sondar seis portas distintas da mesma VM, com o mesmo protocolo (TCP ou UDP), em até 30 segundos, o painel mostra **Possível varredura de portas** em **Importantes** e **Anomalias**. A regra identifica o padrão do tráfego. A ferramenta que o gerou não é identificada pelos pacotes. A coleta independe de `/var/log`.
 
 Falhas de senha, chave pública ou usuário inválido no SSH geram o alerta `lab-ssh-access-denied`. Use **Anomalias** para ver alertas e correlações, ou **Todos** para ver também as conexões. [Regras, correlações e fontes do laboratório](legacy/README.md#tentativas-de-acesso-e-correlações).
 

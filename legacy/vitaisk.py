@@ -362,7 +362,7 @@ def bridge(paths=BRIDGE_PATHS):
 
 
 def packet_bridge():
-    """Stream only inbound IPv4 SYN metadata over the existing lab SSH link."""
+    """Stream inbound IPv4 probe metadata over the existing lab SSH link."""
     check_vm_route()
     peer, peer_port, host, ssh_port = os.environ["SSH_CONNECTION"].split()
     for address in (peer, host):
@@ -371,7 +371,8 @@ def packet_bridge():
             raise ValueError("Packet monitoring requires IPv4 SSH endpoints")
     import pwd
     user = pwd.getpwuid(os.getuid()).pw_name
-    packet_filter = "ip and dst host %s and tcp[13] & 18 = 2" % host
+    packet_filter = ("ip and dst host %s and (tcp[13] & 18 = 2 or udp or "
+                     "icmp[0] = 8)" % host)
     password = sys.stdin.readline(4096)
     if not password.endswith("\n"):
         raise ValueError("Missing password for packet monitoring")

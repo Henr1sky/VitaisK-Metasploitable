@@ -88,6 +88,39 @@ class MetasploitableTests(unittest.TestCase):
             alerts.extend(pipeline.process(collector._parse(record)))
         self.assertEqual([alert.rule_id for alert in alerts], ["tcp-syn-many-ports"])
 
+    def test_ping_and_port_scan_visibility(self):
+        from vitaisk.dashboard import ViewFilter
+
+        host = "192.168.56.101"
+        peer = "192.168.56.102"
+        collector = LabPacketCollector(self.queue, Config(), None, [], host, bytearray())
+        ping = collector._parse(
+            f"1700000000.01 IP {peer} > {host}: ICMP echo request, id 1, seq 1, length 64"
+        )
+        self.assertEqual((ping.category, ping.src_ip, ping.dst_ip, ping.dst_port),
+                         ("icmp_echo_request", peer, host, None))
+        views = {name: ViewFilter(Config(), view=name) for name in ("all", "important", "anomalies")}
+        self.assertTrue(views["all"].matches(ping, ()))
+        self.assertFalse(views["anomalies"].matches(ping, ()))
+
+        rule_id = "lab-possible-port-scan"
+        for protocol, details in (("tcp", "Flags [S]"), ("udp", "UDP, length 8")):
+            with self.subTest(protocol=protocol):
+                pipeline = Pipeline({rule_id: load_rules()[rule_id]})
+                def event(port, ts=1700000000, source=peer):
+                    return collector._parse(f"{ts}.01 IP {source}.33333 > {host}.{port}: {details}")
+
+                for port in (22, 22, 23, 25, 53, 80):
+                    self.assertEqual(list(pipeline.process(event(port))), [])
+                self.assertEqual(list(pipeline.process(event(443, source="192.168.56.103"))), [])
+                probe = event(443, 1700000029)
+                alerts = list(pipeline.process(probe))
+                self.assertEqual([alert.rule_id for alert in alerts], [rule_id])
+                self.assertEqual(alerts[0].event.protocol, protocol)
+                self.assertIn("Possível varredura", alerts[0].localized_reason("pt"))
+                self.assertTrue(views["important"].matches(probe, alerts))
+                self.assertTrue(views["anomalies"].matches(probe, alerts))
+
     def test_guest_history_leaves_partial_line_for_live_updates(self):
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "auth.log"
