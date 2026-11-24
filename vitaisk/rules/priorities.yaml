@@ -1,0 +1,72 @@
+- id: dependency-root-first
+  when: dependency-root-failed
+  target: [dependency-cascade-degraded]
+  group_by: [host, extra.correlation_id]
+  window: 300
+  action: suppress
+
+- id: oom-first
+  when: kernel-oom-killer
+  target: [service-crash-loop]
+  group_by: [host, extra.correlation_id]
+  window: 120
+  action: suppress
+
+- id: exporter-outage-first
+  when: node-exporter-down
+  target: [metric-stale, exporter-scrape-slow]
+  group_by: [host, extra.correlation_id]
+  window: 300
+  action: suppress
+
+- id: maintenance-drift
+  when: maintenance-window-violation
+  target: [baseline-drift-prod]
+  group_by: [host, extra.correlation_id]
+  window: 300
+  action: lower
+  severity: INFO
+
+- id: ssh-success-first
+  when: ssh-fail-then-success
+  target: [ssh-brute-force]
+  group_by: [host, src_ip]
+  window: 300
+  action: suppress
+
+- id: syn-flood-first
+  when: firewall-syn-flood
+  target: [scan-tcp-syn-high, burst-half-open]
+  group_by: [host, src_ip]
+  window: 30
+  action: suppress
+
+- id: c2-associated-shell
+  when: c2-ja3-known
+  target: [shell-reverse-common-port]
+  group_by: [host, extra.correlation_id]
+  window: 120
+  action: raise
+  severity: CRITICAL
+
+- id: pam-change-first
+  when: pam-config-modified
+  target: [pam-*, auth-lockout]
+  group_by: [host]
+  window: 300
+  action: raise
+  severity: CRITICAL
+
+- id: service-incident
+  when: failed-units-accumulation
+  target: [service-*]
+  group_by: [host]
+  window: 300
+  action: group
+
+- id: remediation-human-review
+  when: remediation-loop
+  target: [remediation-loop, auto-remediation-failed]
+  group_by: [host, extra.correlation_id]
+  window: 300
+  action: human_review

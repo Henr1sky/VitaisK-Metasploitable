@@ -1,0 +1,549 @@
+# Entries without group_by are joined using the producer-supplied scope and host.
+- id: service-restarts-with-oom
+  requires: [service-crash-loop, service-oom-kill]
+  group_by: [host, extra.unit]
+  window: 120
+  severity: ERROR
+- id: service-restarts-with-core-dump
+  requires: [service-crash-loop, service-core-dump]
+  group_by: [host, extra.unit]
+  window: 120
+  severity: ERROR
+- id: service-timeout-with-dependency-failure
+  requires: [service-timeout-start, service-dependency-fail]
+  group_by: [host, extra.unit]
+  window: 90
+  severity: ERROR
+- id: service-restarts-with-bind-failure
+  requires: [service-port-bind-fail, service-crash-loop]
+  group_by: [host, extra.unit]
+  window: 120
+  severity: ERROR
+- id: catalog-01-005
+  requires: [service-masked-orphan, unit-file-changed-no-reload]
+- id: service-segfault-with-core-dump
+  requires: [service-exit-sigsegv, service-core-dump]
+  group_by: [host, extra.unit]
+  window: 60
+  severity: ERROR
+- id: service-kill-with-oom
+  requires: [service-exit-sigkill, service-oom-kill]
+  group_by: [host, extra.unit]
+  window: 60
+  severity: ERROR
+- id: catalog-01-008
+  requires: [service-health-endpoint-down, service-functional-probe-fail]
+- id: catalog-01-009
+  requires: [service-response-degraded, service-saturation-fd]
+- id: catalog-01-010
+  requires: [service-saturation-threads, service-throughput-drop]
+- id: catalog-01-011
+  requires: [service-connection-pool-exhausted, service-error-rate-spike]
+- id: catalog-01-012
+  requires: [service-slo-burn-rate, service-error-rate-spike, service-response-degraded]
+- id: catalog-01-013
+  requires: [dependency-root-failed, dependency-cascade-degraded]
+- id: catalog-01-014
+  requires: [dependency-cycle-detected, target-degraded]
+- id: catalog-01-015
+  requires: [after-missing, network-target-instead-of-online]
+- id: catalog-01-016
+  requires: [requires-softened, dependency-cascade-degraded]
+- id: catalog-01-017
+  requires: [binds-to-missing, part-of-orphan]
+- id: catalog-01-018
+  requires: [running-as-root, security-exposure-high]
+- id: catalog-01-019
+  requires: [no-new-privileges-disabled, capabilities-excessive, running-as-root]
+- id: catalog-01-020
+  requires: [execstart-drift, unit-file-changed-no-reload]
+- id: catalog-01-021
+  requires: [drop-in-drift, enabled-vs-expected]
+- id: catalog-01-022
+  requires: [timer-overdue, timer-fail]
+  ordered: true
+- id: catalog-01-023
+  requires: [socket-accept-fail, service-port-bind-fail]
+- id: catalog-01-024
+  requires: [mount-fail, kernel-fs-corruption]
+- id: catalog-01-025
+  requires: [automount-fail, mount-fail]
+- id: catalog-01-026
+  requires: [slice-resource-exceeded, service-oom-kill]
+- id: catalog-01-027
+  requires: [scope-leak, service-crash-loop]
+- id: catalog-01-028
+  requires: [path-fail, unit-file-changed-no-reload]
+- id: catalog-02-029
+  requires: [node-exporter-down, metric-stale]
+- id: catalog-02-030
+  requires: [systemd-collector-disabled, metric-stale]
+- id: catalog-02-031
+  requires: [exporter-scrape-slow, metric-stale]
+- id: catalog-02-032
+  requires: [failed-units-accumulation, dependency-cascade-degraded]
+- id: catalog-02-033
+  requires: [rule-coverage-gap, service-health-endpoint-down]
+- id: catalog-02-034
+  requires: [alert-fatigue, remediation-loop]
+- id: catalog-02-035
+  requires: [alertmanager-silence-stale, silence-justification-missing]
+- id: catalog-02-036
+  requires: [escalation-required, runbook-missing]
+- id: catalog-02-037
+  requires: [auto-remediation-failed, escalation-required]
+- id: catalog-02-038
+  requires: [maintenance-window-violation, baseline-drift-prod]
+- id: catalog-02-039
+  requires: [staging-prod-divergence, baseline-drift-prod]
+- id: catalog-02-040
+  requires: [host-specific-baseline-break, failed-units-accumulation]
+- id: ssh-success-after-brute-force
+  requires: [ssh-brute-force, ssh-fail-then-success]
+  group_by: [host, src_ip, user]
+  window: 300
+  severity: CRITICAL
+  ordered: true
+  supersedes: [ssh-brute-force, ssh-fail-then-success]
+- id: catalog-03-042
+  requires: [ssh-password-spray, ssh-invalid-user]
+- id: catalog-03-043
+  requires: [ssh-brute-force, ssh-password-spray]
+- id: catalog-03-044
+  requires: [ssh-key-auth-fail, ssh-new-source-ip]
+- id: catalog-03-045
+  requires: [ssh-root-login, ssh-new-source-ip]
+- id: catalog-03-046
+  requires: [ssh-concurrent-sessions, ssh-post-login-suspicious]
+- id: catalog-03-047
+  requires: [ssh-fail-then-success, ssh-post-login-suspicious]
+  ordered: true
+- id: catalog-03-048
+  requires: [sudo-fail, su-fail, su-sudo-chain-fail]
+- id: catalog-03-049
+  requires: [sudo-suspicious, sudoers-modified]
+- id: authentication-config-changes
+  requires: [sudoers-modified, pam-config-modified]
+  group_by: [host]
+  window: 120
+  severity: ERROR
+- id: catalog-03-051
+  requires: [pam-config-modified, pam-module-added]
+- id: catalog-03-052
+  requires: [pam-tamper-with-anomaly, auth-lockout]
+- id: user-created-with-shadow-change
+  requires: [passwd-shadow-modified, user-created]
+  group_by: [host]
+  window: 60
+  severity: WARN
+- id: catalog-03-054
+  requires: [user-group-changed, sudo-suspicious]
+- id: catalog-03-055
+  requires: [user-shell-changed, ssh-new-source-ip]
+- id: catalog-03-056
+  requires: [authorized-keys-modified, ssh-key-injection]
+- id: sshd-config-change-with-root-login
+  requires: [sshd-config-modified, ssh-root-login]
+  group_by: [host]
+  window: 120
+  severity: ERROR
+  ordered: true
+- id: catalog-03-058
+  requires: [console-root-login, login-off-hours]
+- id: catalog-03-059
+  requires: [console-login-fail, auth-lockout]
+- id: catalog-03-060
+  requires: [su-success, login-off-hours]
+- id: catalog-03-061
+  requires: [ftp-brute-force, ftp-anonymous-login]
+- id: catalog-03-062
+  requires: [mail-auth-brute-force, openvpn-auth-fail]
+- id: catalog-03-063
+  requires: [openvpn-auth-fail, openvpn-tls-handshake-fail]
+- id: catalog-04-064
+  requires: [kernel-oom-killer, service-oom-kill]
+- id: kernel-panic-with-oom
+  requires: [kernel-oom-panic, kernel-panic]
+  group_by: [host]
+  window: 30
+  severity: CRITICAL
+  same_event: true
+- id: kernel-hung-task-followed-by-panic
+  requires: [kernel-hung-task, kernel-hung-task-panic]
+  group_by: [host]
+  window: 120
+  severity: CRITICAL
+  ordered: true
+- id: kernel-soft-then-hard-lockup
+  requires: [kernel-soft-lockup, kernel-hard-lockup]
+  group_by: [host]
+  window: 120
+  severity: CRITICAL
+  ordered: true
+- id: kernel-machine-check-followed-by-fatal
+  requires: [kernel-mce, kernel-mce-fatal]
+  group_by: [host]
+  window: 120
+  severity: CRITICAL
+  ordered: true
+- id: kernel-edac-with-machine-check
+  requires: [kernel-edac, kernel-mce]
+  group_by: [host]
+  window: 300
+  severity: CRITICAL
+- id: catalog-04-070
+  requires: [kernel-io-error, kernel-ata-error, kernel-fs-corruption]
+  ordered: true
+- id: kernel-filesystem-corruption-with-readonly
+  requires: [kernel-fs-corruption, kernel-fs-readonly]
+  group_by: [host, extra.device]
+  window: 120
+  severity: ERROR
+- id: catalog-04-072
+  requires: [kernel-vfs-mount-fail, mount-fail]
+- id: catalog-04-073
+  requires: [kernel-null-deref, kernel-oops, kernel-calltrace]
+- id: catalog-04-074
+  requires: [kernel-segfault-burst, service-exit-signal]
+- id: kernel-taint-with-module-failure
+  requires: [kernel-tainted, kernel-module-fail]
+  group_by: [host]
+  window: 120
+  severity: WARN
+- id: kernel-thermal-with-soft-lockup
+  requires: [kernel-thermal, kernel-soft-lockup]
+  group_by: [host]
+  window: 120
+  severity: ERROR
+- id: kernel-rcu-stall-with-hung-task
+  requires: [kernel-rcu-stall, kernel-hung-task]
+  group_by: [host]
+  window: 120
+  severity: ERROR
+- id: kernel-init-exit-with-panic
+  requires: [kernel-init-killed, kernel-panic]
+  group_by: [host]
+  window: 60
+  severity: CRITICAL
+  same_event: true
+- id: kernel-syn-flood-with-observed-burst
+  requires: [kernel-syn-flood, burst-syn-flood]
+  group_by: [host]
+  window: 30
+  severity: CRITICAL
+- id: catalog-04-080
+  requires: [kernel-netdev-watchdog, kernel-io-error]
+- id: catalog-04-081
+  requires: [kernel-neigh-overflow, proto-arp-flood]
+- id: catalog-04-082
+  requires: [kernel-promisc, proto-arp-spoof]
+- id: catalog-04-083
+  requires: [kernel-conntrack-error, burst-connections-200]
+- id: kernel-sysrq-followed-by-panic
+  requires: [kernel-sysrq-crash, kernel-panic]
+  group_by: [host]
+  window: 60
+  severity: CRITICAL
+  ordered: true
+- id: scan-syn-with-aggressive-burst
+  requires: [scan-tcp-syn-high, scan-tcp-syn-aggressive]
+  group_by: [host, src_ip]
+  window: 10
+  severity: CRITICAL
+  ordered: true
+  same_event: true
+- id: catalog-05-086
+  requires: [scan-tcp-syn-threshold, scan-masscan]
+- id: catalog-05-087
+  requires: [scan-nmap-os-fingerprint, scan-nmap-window-probe]
+- id: catalog-05-088
+  requires: [scan-nmap-nse-user-agent, firewall-nmap-user-agent]
+- id: catalog-05-089
+  requires: [scan-tcp-xmas, scan-tcp-null, scan-tcp-fin]
+- id: catalog-05-090
+  requires: [scan-udp-high, scan-udp-icmp-unreachable]
+- id: catalog-05-091
+  requires: [scan-udp-dns-port, scan-udp-snmp-port]
+- id: catalog-05-092
+  requires: [scan-decoys-detected, scan-tcp-syn-high]
+- id: catalog-05-093
+  requires: [scan-internal-horizontal, lateral-internal-scan]
+- id: catalog-05-094
+  requires: [scan-internal-icmp-sweep, burst-icmp-flood]
+- id: catalog-05-095
+  requires: [scan-tcp-ack, proto-tcp-flag-anomaly]
+- id: catalog-05-096
+  requires: [scan-tcp-synack, proto-tcp-window-zero]
+- id: catalog-06-097
+  requires: [shell-reverse-common-port, c2-port-unusual]
+- id: catalog-06-098
+  requires: [shell-netcat-outbound, shell-outbound-rare-process]
+- id: catalog-06-099
+  requires: [shell-dev-tcp, shell-reverse-http-port]
+- id: catalog-06-100
+  requires: [shell-meterpreter-stager, c2-ja3-known]
+- id: catalog-06-101
+  requires: [shell-backdoor-port-666, shell-bind-port]
+- id: catalog-06-102
+  requires: [shell-backdoor-port-range-30000-31000, c2-beacon-http]
+- id: catalog-06-103
+  requires: [c2-beacon-http, c2-beacon-tls, c2-dns-beacon]
+- id: catalog-06-104
+  requires: [c2-beacon-jitter, c2-generic-periodic-outbound]
+- id: catalog-06-105
+  requires: [c2-ja3-known, c2-user-agent-suspect]
+- id: catalog-06-106
+  requires: [c2-sni-rare, c2-malleable-profile]
+- id: catalog-06-107
+  requires: [c2-powershell-outbound, firewall-powershell-download]
+- id: catalog-06-108
+  requires: [c2-dns-beacon, dns-beaconing]
+- id: catalog-06-109
+  requires: [c2-port-unusual, exfil-unusual-port]
+- id: catalog-06-110
+  requires: [shell-outbound-rare-process, lateral-psexec]
+- id: catalog-07-111
+  requires: [dns-tunnel-long-query, dns-tunnel-txt-heavy]
+- id: catalog-07-112
+  requires: [dns-tunnel-iodine-upstream, dns-tunnel-iodine-downstream]
+- id: catalog-07-113
+  requires: [dns-tunnel-dnscat2-pattern, dns-beaconing]
+- id: catalog-07-114
+  requires: [dns-txt-exfil-volume, exfil-dns-volume]
+- id: catalog-07-115
+  requires: [dns-dga-pattern, firewall-dga-domain]
+- id: catalog-07-116
+  requires: [dns-query-burst, burst-dns-query]
+- id: catalog-07-117
+  requires: [dns-nxdomain-burst, dns-dga-pattern]
+- id: catalog-07-118
+  requires: [dns-response-size-anomaly, firewall-dns-amplification]
+- id: catalog-07-119
+  requires: [dns-query-type-anomaly, firewall-dns-zone-transfer]
+- id: catalog-07-120
+  requires: [dns-beaconing, c2-dns-beacon, firewall-c2-beacon]
+- id: catalog-07-121
+  requires: [exfil-large-outbound, exfil-ratio-high]
+- id: catalog-07-122
+  requires: [exfil-cloud-storage, exfil-rclone-process]
+- id: catalog-07-123
+  requires: [exfil-http-post-large, firewall-data-exfiltration-http]
+- id: catalog-07-124
+  requires: [exfil-scp-large, exfil-generic-session-long]
+- id: catalog-07-125
+  requires: [exfil-icmp-volume, icmp-exfil-volume]
+- id: catalog-07-126
+  requires: [exfil-off-hours, login-off-hours]
+- id: catalog-07-127
+  requires: [exfil-generic-volume-anomaly, burst-connections-multi-dst]
+- id: catalog-08-128
+  requires: [lateral-smb-multi-host, smb-scan-horizontal]
+- id: catalog-08-129
+  requires: [lateral-psexec, smb-psexec-service-install]
+- id: catalog-08-130
+  requires: [lateral-rdp-pivot, rdp-scan-horizontal]
+- id: catalog-08-131
+  requires: [lateral-wmi-remote, lateral-winrm]
+- id: catalog-08-132
+  requires: [lateral-kerberos-anomaly, lateral-generic-internal-ports]
+- id: catalog-08-133
+  requires: [lateral-internal-burst, burst-connections-50]
+- id: catalog-08-134
+  requires: [lateral-internal-scan, scan-internal-horizontal]
+- id: catalog-08-135
+  requires: [lateral-smb-multi-host, proto-arp-spoof]
+- id: catalog-09-136
+  requires: [firewall-port-scan-tcp, firewall-syn-scan]
+- id: catalog-09-137
+  requires: [firewall-port-scan-udp, firewall-snmp-sweep]
+- id: catalog-09-138
+  requires: [firewall-null-scan, firewall-xmas-scan, firewall-fin-scan]
+- id: catalog-09-139
+  requires: [firewall-ack-scan, firewall-state-invalid]
+- id: catalog-09-140
+  requires: [firewall-version-scan, firewall-scanner-detection]
+- id: catalog-09-141
+  requires: [firewall-nmap-user-agent, firewall-scanner-detection]
+- id: catalog-09-142
+  requires: [firewall-ssh-scan, firewall-ssh-brute]
+  ordered: true
+- id: catalog-09-143
+  requires: [firewall-rdp-scan, firewall-rdp-brute]
+- id: catalog-09-144
+  requires: [firewall-smb-enum, smb-scan-horizontal]
+- id: catalog-09-145
+  requires: [firewall-syn-flood, burst-syn-flood-threshold, kernel-syn-flood]
+- id: catalog-09-146
+  requires: [firewall-udp-flood, burst-udp-flood]
+- id: catalog-09-147
+  requires: [firewall-icmp-flood, burst-icmp-flood]
+- id: catalog-09-148
+  requires: [firewall-http-flood, burst-http-flood]
+- id: catalog-09-149
+  requires: [firewall-slowloris, burst-http-slowloris]
+- id: catalog-09-150
+  requires: [firewall-http-post-flood, exfil-http-post-large]
+- id: catalog-09-151
+  requires: [firewall-ssl-renegotiation-flood, proto-tls-self-signed]
+- id: catalog-09-152
+  requires: [firewall-dns-amplification, burst-ntp-amplification, burst-ssdp-amplification]
+- id: catalog-09-153
+  requires: [firewall-ntp-amplification, proto-ntp-monlist]
+- id: catalog-09-154
+  requires: [firewall-ping-of-death, firewall-teardrop]
+- id: catalog-09-155
+  requires: [firewall-connection-limit, burst-connections-200]
+- id: catalog-09-156
+  requires: [firewall-ssh-brute, ssh-brute-force]
+- id: catalog-09-157
+  requires: [firewall-rdp-brute, rdp-brute-force]
+- id: catalog-09-158
+  requires: [firewall-ftp-brute, ftp-brute-force]
+- id: catalog-09-159
+  requires: [firewall-smtp-auth-brute, mail-auth-brute-force]
+- id: catalog-09-160
+  requires: [firewall-http-auth-brute, firewall-web-login-brute]
+- id: catalog-09-161
+  requires: [firewall-ssh-root-login, ssh-root-login]
+- id: catalog-09-162
+  requires: [firewall-password-spray, ssh-password-spray]
+- id: catalog-09-163
+  requires: [firewall-credential-stuffing, ssh-brute-force]
+- id: catalog-09-164
+  requires: [firewall-default-credential, firewall-api-key-brute]
+- id: catalog-09-165
+  requires: [firewall-jwt-none-alg, firewall-jwt-tampered]
+- id: catalog-09-166
+  requires: [firewall-cookie-tampering, firewall-session-fixation]
+- id: catalog-09-167
+  requires: [firewall-invalid-tcp-flags, proto-tcp-flag-anomaly]
+- id: catalog-09-168
+  requires: [firewall-land-attack, proto-ip-fragment-overlap]
+- id: catalog-09-169
+  requires: [firewall-state-invalid, proto-tcp-window-zero]
+- id: catalog-09-170
+  requires: [firewall-fragmented-overlap, firewall-teardrop]
+- id: catalog-09-171
+  requires: [firewall-http-smuggling, firewall-content-length-mismatch]
+- id: catalog-09-172
+  requires: [firewall-http-host-missing, firewall-http-version-anomaly]
+- id: catalog-09-173
+  requires: [firewall-http-method-anomaly, proto-http-method-uncommon]
+- id: catalog-09-174
+  requires: [firewall-user-agent-empty, firewall-scanner-detection]
+- id: catalog-09-175
+  requires: [firewall-chunked-encoding-abuse, firewall-content-length-mismatch]
+- id: catalog-09-176
+  requires: [firewall-ftp-bounce, firewall-smtp-relay-open]
+- id: catalog-09-177
+  requires: [firewall-dns-tunneling, dns-tunnel-txt-heavy]
+- id: catalog-09-178
+  requires: [firewall-sqli-union, firewall-sqli-or, firewall-sqli-comment]
+- id: catalog-09-179
+  requires: [firewall-sqli-time-based, firewall-rce-command-injection]
+- id: catalog-09-180
+  requires: [firewall-xss-script-tag, firewall-xss-event-handler, firewall-xss-javascript-uri]
+- id: catalog-09-181
+  requires: [firewall-lfi-path-traversal, firewall-lfi-wrapper]
+- id: catalog-09-182
+  requires: [firewall-rfi-remote-url, firewall-ssrf-internal]
+- id: catalog-09-183
+  requires: [firewall-rce-command-injection, firewall-rce-eval, firewall-php-code-injection]
+- id: catalog-09-184
+  requires: [firewall-java-deserialization, firewall-xxe-entity]
+- id: catalog-09-185
+  requires: [firewall-webshell-access, firewall-webshell-upload]
+- id: catalog-09-186
+  requires: [firewall-ssti-template, firewall-rce-eval]
+- id: catalog-09-187
+  requires: [firewall-open-redirect, firewall-ssrf-internal]
+- id: catalog-09-188
+  requires: [firewall-reputation-hit, firewall-tor-exit]
+- id: catalog-09-189
+  requires: [firewall-geoip-restricted, firewall-reputation-hit]
+- id: catalog-09-190
+  requires: [firewall-c2-beacon, c2-beacon-http, c2-beacon-tls]
+- id: catalog-09-191
+  requires: [firewall-dga-domain, dns-dga-pattern]
+- id: catalog-09-192
+  requires: [firewall-malware-download, firewall-macro-document]
+- id: catalog-09-193
+  requires: [firewall-powershell-download, c2-powershell-outbound]
+- id: catalog-09-194
+  requires: [firewall-cryptomining-pool, c2-port-unusual]
+- id: catalog-09-195
+  requires: [firewall-p2p-traffic, firewall-irc-c2]
+- id: catalog-09-196
+  requires: [firewall-dns-sinkhole, firewall-dga-domain]
+- id: catalog-09-197
+  requires: [firewall-outbound-smtp-direct, firewall-smtp-relay-open]
+- id: catalog-09-198
+  requires: [firewall-data-exfiltration-dns, dns-txt-exfil-volume]
+- id: catalog-09-199
+  requires: [firewall-data-exfiltration-http, exfil-http-post-large]
+- id: catalog-09-200
+  requires: [firewall-ja3-malicious, c2-ja3-known]
+- id: catalog-09-201
+  requires: [firewall-ssl-cert-invalid, proto-tls-expired-cert]
+- id: catalog-09-202
+  requires: [firewall-dns-fast-flux, dns-dga-pattern]
+- id: catalog-09-203
+  requires: [firewall-domain-fronting, c2-malleable-profile]
+- id: catalog-09-204
+  requires: [firewall-protocol-tunneling, http-tunnel-base64]
+- id: catalog-10-205
+  requires: [ssh-fail-then-success, sudoers-modified, authorized-keys-modified]
+- id: catalog-10-206
+  requires: [ssh-brute-force, firewall-ssh-brute, kernel-syn-flood]
+- id: catalog-10-207
+  requires: [scan-masscan, firewall-port-scan-tcp, burst-connections-200]
+- id: catalog-10-208
+  requires: [kernel-oom-killer, service-oom-kill, slice-resource-exceeded]
+- id: catalog-10-209
+  requires: [service-health-endpoint-down, rule-coverage-gap, escalation-required]
+- id: catalog-10-210
+  requires: [c2-ja3-known, firewall-ja3-malicious, shell-meterpreter-stager]
+- id: catalog-10-211
+  requires: [exfil-rclone-process, exfil-cloud-storage, firewall-data-exfiltration-http]
+- id: catalog-10-212
+  requires: [lateral-psexec, smb-psexec-service-install, firewall-smb-enum]
+- id: catalog-10-213
+  requires: [dns-tunnel-iodine-upstream, firewall-dns-tunneling, dns-txt-exfil-volume]
+- id: catalog-10-214
+  requires: [pam-config-modified, pam-module-added, ssh-fail-then-success]
+- id: catalog-10-215
+  requires: [user-created, passwd-shadow-modified, sudo-suspicious]
+- id: catalog-10-216
+  requires: [proto-arp-spoof, lateral-smb-multi-host, ssh-concurrent-sessions]
+- id: catalog-10-217
+  requires: [kernel-mce-fatal, kernel-edac, host-specific-baseline-break]
+- id: catalog-10-218
+  requires: [service-crash-loop, service-core-dump, kernel-segfault-burst]
+- id: catalog-10-219
+  requires: [timer-overdue, path-fail, unit-file-changed-no-reload]
+- id: catalog-10-220
+  requires: [dependency-root-failed, dependency-cascade-degraded, failed-units-accumulation]
+- id: catalog-10-221
+  requires: [c2-beacon-http, exfil-generic-volume-anomaly, firewall-c2-beacon]
+- id: catalog-10-222
+  requires: [scan-internal-horizontal, lateral-internal-scan, lateral-generic-internal-ports]
+- id: catalog-10-223
+  requires: [ssh-new-source-ip, login-off-hours, ssh-post-login-suspicious]
+  ordered: true
+- id: catalog-10-224
+  requires: [firewall-sqli-union, firewall-webshell-upload, firewall-webshell-access]
+  ordered: true
+- id: catalog-10-225
+  requires: [firewall-ssrf-internal, lateral-internal-scan, exfil-generic-volume-anomaly]
+  ordered: true
+- id: catalog-10-226
+  requires: [auth-lockout, ssh-brute-force, firewall-password-spray]
+- id: catalog-10-227
+  requires: [kernel-fs-corruption, kernel-fs-readonly, mount-fail]
+  ordered: true
+- id: catalog-10-228
+  requires: [service-slo-burn-rate, service-error-rate-spike, service-connection-pool-exhausted]
+- id: catalog-10-229
+  requires: [baseline-drift-prod, staging-prod-divergence, host-specific-baseline-break]
+- id: catalog-10-230
+  requires: [auto-remediation-failed, remediation-loop, escalation-required]

@@ -1,0 +1,361 @@
+# Detection identifiers and defaults from the supplied requirement catalogs.
+after-missing: {severity: WARN}
+alert-fatigue: {severity: WARN}
+alertmanager-silence-stale: {severity: WARN}
+auth-lockout: {severity: WARN}
+authorized-keys-modified: {severity: CRITICAL}
+auto-remediation-failed: {severity: ERROR}
+automount-fail: {severity: WARN}
+baseline-drift-prod: {severity: WARN}
+binds-to-missing: {severity: WARN}
+burst-ack-flood: {severity: WARN}
+burst-connections-200: {severity: CRITICAL}
+burst-connections-50: {severity: WARN}
+burst-connections-multi-dst: {severity: WARN}
+burst-dns-query: {severity: WARN}
+burst-fin-flood: {severity: INFO}
+burst-half-open: {severity: WARN}
+burst-http-flood: {severity: WARN}
+burst-http-slowloris: {severity: WARN}
+burst-icmp-flood: {severity: WARN}
+burst-ntp-amplification: {severity: WARN}
+burst-rst-flood: {severity: WARN}
+burst-ssdp-amplification: {severity: WARN}
+burst-syn-flood: {severity: CRITICAL}
+burst-syn-flood-threshold: {severity: CRITICAL}
+burst-udp-flood: {severity: WARN}
+burst-udp-flood-threshold: {severity: WARN}
+c2-beacon-http: {severity: WARN}
+c2-beacon-jitter: {severity: WARN}
+c2-beacon-tls: {severity: WARN}
+c2-dns-beacon: {severity: WARN}
+c2-generic-periodic-outbound: {severity: INFO}
+c2-ja3-known: {severity: CRITICAL}
+c2-malleable-profile: {severity: WARN}
+c2-port-unusual: {severity: WARN}
+c2-powershell-outbound: {severity: WARN}
+c2-sni-rare: {severity: WARN}
+c2-user-agent-suspect: {severity: ERROR}
+capabilities-excessive: {severity: WARN}
+console-login-fail: {severity: WARN}
+console-root-login: {severity: WARN}
+dependency-cascade-degraded: {severity: ERROR}
+dependency-cycle-detected: {severity: WARN}
+dependency-root-failed: {severity: ERROR}
+dns-beaconing: {severity: WARN}
+dns-dga-pattern: {severity: WARN}
+dns-nxdomain-burst: {severity: INFO}
+dns-query-burst: {severity: WARN}
+dns-query-type-anomaly: {severity: WARN}
+dns-response-size-anomaly: {severity: INFO}
+dns-tunnel-dnscat2-pattern: {severity: WARN}
+dns-tunnel-iodine-downstream: {severity: CRITICAL}
+dns-tunnel-iodine-upstream: {severity: CRITICAL}
+dns-tunnel-long-query: {severity: WARN}
+dns-tunnel-null-private-rr: {severity: WARN}
+dns-tunnel-txt-heavy: {severity: ERROR}
+dns-txt-exfil-volume: {severity: CRITICAL}
+drop-in-drift: {severity: WARN}
+enabled-vs-expected: {severity: WARN}
+escalation-required: {severity: ERROR}
+execstart-drift: {severity: WARN}
+exfil-cloud-storage: {severity: WARN}
+exfil-dns-volume: {severity: CRITICAL}
+exfil-generic-session-long: {severity: INFO}
+exfil-generic-volume-anomaly: {severity: WARN}
+exfil-http-post-large: {severity: WARN}
+exfil-icmp-volume: {severity: CRITICAL}
+exfil-large-outbound: {severity: CRITICAL}
+exfil-off-hours: {severity: WARN}
+exfil-ratio-high: {severity: WARN}
+exfil-rclone-process: {severity: CRITICAL}
+exfil-scp-large: {severity: WARN}
+exfil-unusual-port: {severity: WARN}
+exporter-scrape-slow: {severity: WARN}
+failed-units-accumulation: {severity: WARN}
+firewall-ack-flood: {severity: WARN, suggested_actions: [DROP]}
+firewall-ack-scan: {severity: WARN, suggested_actions: [DROP]}
+firewall-api-key-brute: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-c2-beacon: {severity: WARN, suggested_actions: [DROP]}
+firewall-chunked-encoding-abuse: {severity: WARN, suggested_actions: [DROP]}
+firewall-connection-limit: {severity: WARN, suggested_actions: [RATE-LIMIT]}
+firewall-content-length-mismatch: {severity: WARN, suggested_actions: [DROP]}
+firewall-cookie-tampering: {severity: WARN, suggested_actions: [DROP]}
+firewall-credential-stuffing: {severity: WARN}
+firewall-cryptomining-pool: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-data-exfiltration-dns: {severity: WARN}
+firewall-data-exfiltration-http: {severity: WARN}
+firewall-default-credential: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-dga-domain: {severity: WARN}
+firewall-dns-amplification: {severity: WARN, suggested_actions: [DROP]}
+firewall-dns-fast-flux: {severity: WARN}
+firewall-dns-sinkhole: {severity: WARN, suggested_actions: [DROP]}
+firewall-dns-tunneling: {severity: WARN, suggested_actions: [DROP]}
+firewall-dns-zone-transfer: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-domain-fronting: {severity: WARN}
+firewall-fin-flood: {severity: WARN, suggested_actions: [DROP]}
+firewall-fin-scan: {severity: WARN, suggested_actions: [DROP]}
+firewall-fragmented-overlap: {severity: WARN, suggested_actions: [DROP]}
+firewall-ftp-bounce: {severity: WARN}
+firewall-ftp-brute: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-geoip-restricted: {severity: WARN, suggested_actions: [DROP]}
+firewall-http-auth-brute: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-http-flood: {severity: WARN, suggested_actions: [RATE-LIMIT]}
+firewall-http-host-missing: {severity: WARN, suggested_actions: [DROP]}
+firewall-http-method-anomaly: {severity: WARN}
+firewall-http-post-flood: {severity: WARN, suggested_actions: [RATE-LIMIT]}
+firewall-http-smuggling: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-http-version-anomaly: {severity: WARN, suggested_actions: [DROP]}
+firewall-icmp-flood: {severity: WARN, suggested_actions: [DROP]}
+firewall-invalid-tcp-flags: {severity: WARN, suggested_actions: [DROP]}
+firewall-ipv6-fragment-anomaly: {severity: WARN, suggested_actions: [DROP]}
+firewall-irc-c2: {severity: WARN}
+firewall-ja3-malicious: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-java-deserialization: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-jwt-none-alg: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-jwt-tampered: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-land-attack: {severity: WARN, suggested_actions: [DROP]}
+firewall-lfi-path-traversal: {severity: WARN, suggested_actions: [DROP]}
+firewall-lfi-wrapper: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-macro-document: {severity: WARN}
+firewall-malware-download: {severity: WARN}
+firewall-nmap-user-agent: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-ntp-amplification: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-null-scan: {severity: WARN, suggested_actions: [DROP]}
+firewall-open-redirect: {severity: WARN}
+firewall-outbound-smtp-direct: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-p2p-traffic: {severity: WARN}
+firewall-password-spray: {severity: WARN}
+firewall-php-code-injection: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-ping-of-death: {severity: WARN, suggested_actions: [DROP]}
+firewall-port-scan-tcp: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-port-scan-udp: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-powershell-download: {severity: WARN}
+firewall-protocol-tunneling: {severity: WARN, suggested_actions: [DROP]}
+firewall-rce-command-injection: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-rce-eval: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-rdp-brute: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-rdp-scan: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-reputation-hit: {severity: WARN, suggested_actions: [DROP]}
+firewall-rfi-remote-url: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-rst-flood: {severity: WARN, suggested_actions: [DROP]}
+firewall-scanner-detection: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-session-fixation: {severity: WARN}
+firewall-slowloris: {severity: WARN, suggested_actions: [DROP]}
+firewall-smb-enum: {severity: WARN}
+firewall-smtp-auth-brute: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-smtp-relay-open: {severity: WARN}
+firewall-snmp-sweep: {severity: WARN}
+firewall-sqli-comment: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-sqli-or: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-sqli-time-based: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-sqli-union: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-ssh-brute: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-ssh-root-login: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-ssh-scan: {severity: WARN, suggested_actions: [RATE-LIMIT]}
+firewall-ssl-cert-invalid: {severity: WARN}
+firewall-ssl-renegotiation-flood: {severity: WARN, suggested_actions: [DROP]}
+firewall-ssrf-internal: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-ssti-template: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-state-invalid: {severity: WARN, suggested_actions: [DROP]}
+firewall-syn-flood: {severity: WARN, suggested_actions: [DROP]}
+firewall-syn-scan: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-teardrop: {severity: WARN, suggested_actions: [DROP]}
+firewall-tor-exit: {severity: WARN}
+firewall-udp-flood: {severity: WARN, suggested_actions: [DROP]}
+firewall-user-agent-empty: {severity: WARN}
+firewall-version-scan: {severity: WARN}
+firewall-web-login-brute: {severity: WARN, suggested_actions: [RATE-LIMIT]}
+firewall-webshell-access: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-webshell-upload: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-xmas-scan: {severity: WARN, suggested_actions: [DROP]}
+firewall-xss-event-handler: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-xss-javascript-uri: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-xss-script-tag: {severity: WARN, suggested_actions: [BLOCK]}
+firewall-xxe-entity: {severity: WARN, suggested_actions: [BLOCK]}
+ftp-anonymous-login: {severity: INFO}
+ftp-brute-force: {severity: WARN}
+host-specific-baseline-break: {severity: WARN}
+http-tunnel-base64: {severity: WARN}
+icmp-exfil-volume: {severity: CRITICAL}
+icmp-tunnel-payload: {severity: WARN}
+kernel-ata-error: {severity: ERROR}
+kernel-bug-at: {severity: ERROR}
+kernel-calltrace: {severity: WARN}
+kernel-conntrack-error: {severity: WARN}
+kernel-edac: {severity: ERROR}
+kernel-fs-corruption: {severity: CRITICAL}
+kernel-fs-readonly: {severity: ERROR}
+kernel-hard-lockup: {severity: CRITICAL}
+kernel-hung-task: {severity: ERROR}
+kernel-hung-task-panic: {severity: CRITICAL}
+kernel-icmp-invalid: {severity: INFO}
+kernel-init-killed: {severity: CRITICAL}
+kernel-io-error: {severity: ERROR}
+kernel-mce: {severity: CRITICAL}
+kernel-mce-fatal: {severity: CRITICAL}
+kernel-module-fail: {severity: WARN}
+kernel-neigh-overflow: {severity: WARN}
+kernel-netdev-watchdog: {severity: ERROR}
+kernel-nmi-watchdog: {severity: ERROR}
+kernel-null-deref: {severity: ERROR}
+kernel-oom-killer: {severity: CRITICAL}
+kernel-oom-panic: {severity: CRITICAL}
+kernel-oops: {severity: ERROR}
+kernel-panic: {severity: CRITICAL}
+kernel-promisc: {severity: WARN}
+kernel-rcu-stall: {severity: ERROR}
+kernel-segfault-burst: {severity: WARN}
+kernel-soft-lockup: {severity: ERROR}
+kernel-syn-flood: {severity: WARN}
+kernel-sysrq-crash: {severity: WARN}
+kernel-tainted: {severity: WARN}
+kernel-thermal: {severity: WARN}
+kernel-vfs-mount-fail: {severity: CRITICAL}
+lateral-generic-internal-ports: {severity: WARN}
+lateral-internal-burst: {severity: WARN}
+lateral-internal-scan: {severity: CRITICAL}
+lateral-kerberos-anomaly: {severity: WARN}
+lateral-psexec: {severity: CRITICAL}
+lateral-rdp-pivot: {severity: WARN}
+lateral-smb-multi-host: {severity: CRITICAL}
+lateral-winrm: {severity: WARN}
+lateral-wmi-remote: {severity: WARN}
+login-off-hours: {severity: INFO}
+mail-auth-brute-force: {severity: WARN}
+maintenance-window-violation: {severity: INFO}
+metric-stale: {severity: WARN}
+mount-fail: {severity: ERROR}
+network-target-instead-of-online: {severity: WARN}
+no-new-privileges-disabled: {severity: WARN}
+node-exporter-down: {severity: ERROR}
+openvpn-auth-fail: {severity: WARN}
+openvpn-tls-handshake-fail: {severity: WARN}
+pam-config-modified: {severity: CRITICAL}
+pam-fail: {severity: WARN}
+pam-module-added: {severity: CRITICAL}
+pam-tamper-with-anomaly: {severity: CRITICAL}
+part-of-orphan: {severity: WARN}
+passwd-changed: {severity: INFO}
+passwd-self-change: {severity: INFO}
+passwd-shadow-modified: {severity: WARN}
+path-fail: {severity: WARN}
+private-tmp-disabled: {severity: WARN}
+protect-system-disabled: {severity: WARN}
+proto-arp-flood: {severity: WARN}
+proto-arp-spoof: {severity: CRITICAL}
+proto-dhcp-rogue: {severity: CRITICAL}
+proto-http-double-encoding: {severity: WARN}
+proto-http-long-uri: {severity: WARN}
+proto-http-method-uncommon: {severity: WARN}
+proto-ip-fragment-overlap: {severity: WARN}
+proto-ip-ttl-anomaly: {severity: INFO}
+proto-ipv6-extension-header: {severity: WARN}
+proto-ntp-monlist: {severity: WARN}
+proto-tcp-flag-anomaly: {severity: WARN}
+proto-tcp-urgent-flag: {severity: INFO}
+proto-tcp-window-zero: {severity: INFO}
+proto-tls-expired-cert: {severity: INFO}
+proto-tls-self-signed: {severity: INFO}
+rdp-brute-force: {severity: ERROR}
+rdp-scan-horizontal: {severity: WARN}
+remediation-loop: {severity: ERROR}
+requires-softened: {severity: WARN}
+rule-coverage-gap: {severity: WARN}
+runbook-missing: {severity: WARN}
+running-as-root: {severity: ERROR}
+scan-decoys-detected: {severity: WARN}
+scan-internal-horizontal: {severity: CRITICAL}
+scan-internal-icmp-sweep: {severity: WARN}
+scan-masscan: {severity: CRITICAL}
+scan-nmap-nse-user-agent: {severity: ERROR}
+scan-nmap-os-fingerprint: {severity: CRITICAL}
+scan-nmap-window-probe: {severity: WARN}
+scan-tcp-ack: {severity: WARN}
+scan-tcp-fin: {severity: WARN}
+scan-tcp-null: {severity: WARN}
+scan-tcp-syn-aggressive: {severity: CRITICAL}
+scan-tcp-syn-high: {severity: WARN}
+scan-tcp-syn-threshold: {severity: WARN}
+scan-tcp-synack: {severity: WARN}
+scan-tcp-xmas: {severity: WARN}
+scan-udp-dns-port: {severity: INFO}
+scan-udp-high: {severity: WARN}
+scan-udp-icmp-unreachable: {severity: WARN}
+scan-udp-snmp-port: {severity: INFO}
+scan-udp-threshold: {severity: INFO}
+scope-leak: {severity: WARN}
+security-exposure-high: {severity: WARN}
+service-connection-pool-exhausted: {severity: WARN}
+service-core-dump: {severity: ERROR}
+service-crash-loop: {severity: ERROR}
+service-dependency-external-down: {severity: ERROR}
+service-dependency-fail: {severity: ERROR}
+service-error-rate-spike: {severity: WARN}
+service-exit-sigkill: {severity: WARN}
+service-exit-signal: {severity: ERROR}
+service-exit-sigsegv: {severity: WARN}
+service-fail: {severity: ERROR}
+service-functional-probe-fail: {severity: ERROR}
+service-health-endpoint-down: {severity: ERROR}
+service-masked-orphan: {severity: ERROR}
+service-oom-kill: {severity: ERROR}
+service-port-bind-fail: {severity: ERROR}
+service-response-degraded: {severity: WARN}
+service-saturation-fd: {severity: WARN}
+service-saturation-threads: {severity: WARN}
+service-slo-burn-rate: {severity: WARN}
+service-throughput-drop: {severity: WARN}
+service-timeout-start: {severity: ERROR}
+service-unit-not-found: {severity: ERROR}
+shell-backdoor-port-666: {severity: ERROR}
+shell-backdoor-port-range-30000-31000: {severity: WARN}
+shell-bind-port: {severity: ERROR}
+shell-dev-tcp: {severity: CRITICAL}
+shell-meterpreter-stager: {severity: WARN}
+shell-netcat-outbound: {severity: ERROR}
+shell-outbound-rare-process: {severity: WARN}
+shell-reverse-common-port: {severity: ERROR}
+shell-reverse-http-port: {severity: ERROR}
+silence-justification-missing: {severity: WARN}
+slice-resource-exceeded: {severity: WARN}
+smb-psexec-service-install: {severity: CRITICAL}
+smb-scan-horizontal: {severity: CRITICAL}
+snmp-community-public: {severity: WARN}
+snmp-scan: {severity: WARN}
+socket-accept-fail: {severity: ERROR}
+socket-refused: {severity: WARN}
+ssh-brute-force: {severity: ERROR}
+ssh-concurrent-sessions: {severity: WARN}
+ssh-fail-then-success: {severity: CRITICAL}
+ssh-invalid-user: {severity: WARN}
+ssh-key-auth-fail: {severity: WARN}
+ssh-key-injection: {severity: CRITICAL}
+ssh-new-source-ip: {severity: INFO}
+ssh-password-spray: {severity: CRITICAL}
+ssh-post-login-suspicious: {severity: WARN}
+ssh-root-login: {severity: WARN}
+ssh-scan-horizontal: {severity: WARN}
+sshd-config-modified: {severity: CRITICAL}
+staging-prod-divergence: {severity: WARN}
+su-fail: {severity: WARN}
+su-success: {severity: INFO}
+su-sudo-chain-fail: {severity: WARN}
+sudo-fail: {severity: WARN}
+sudo-no-tty-tickets: {severity: WARN}
+sudo-root-shell: {severity: WARN}
+sudo-suspicious: {severity: WARN}
+sudo-unusual-command: {severity: INFO}
+sudoers-modified: {severity: CRITICAL}
+systemd-collector-disabled: {severity: ERROR}
+target-degraded: {severity: WARN}
+telnet-scan: {severity: WARN}
+timer-fail: {severity: WARN}
+timer-overdue: {severity: WARN}
+unit-file-changed-no-reload: {severity: WARN}
+user-account-modified: {severity: INFO}
+user-created: {severity: WARN}
+user-group-changed: {severity: WARN}
+user-removed: {severity: WARN}
+user-shell-changed: {severity: WARN}
+vnc-scan: {severity: WARN}
