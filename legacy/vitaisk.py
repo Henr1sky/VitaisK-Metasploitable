@@ -4,6 +4,9 @@
 import base64
 import os
 import re
+import select
+import signal
+import subprocess
 import sys
 import time
 from optparse import OptionParser
@@ -349,6 +352,75 @@ def bridge(paths=BRIDGE_PATHS):
         return 1
 
 
+def packet_bridge():
+    """Stream only inbound IPv4 SYN metadata over the existing lab SSH link."""
+    check_vm_route()
+    peer, peer_port, host, ssh_port = os.environ["SSH_CONNECTION"].split()
+    for address in (peer, host):
+        fields = address.split(".")
+        if len(fields) != 4 or not all_digits(fields):
+            raise ValueError("Packet monitoring requires IPv4 SSH endpoints")
+    import pwd
+    user = pwd.getpwuid(os.getuid()).pw_name
+    packet_filter = "src host %s and dst host %s and tcp[13] & 18 = 2" % (peer, host)
+    password = sys.stdin.readline(4096)
+    if not password.endswith("\n"):
+        raise ValueError("Missing password for packet monitoring")
+    proc = subprocess.Popen(
+        ["sudo", "-S", "-p", "", "/usr/sbin/tcpdump", "-Z", user, "-p",
+         "-i", "any", "-l", "-nn", "-tt", "-s", "96", packet_filter],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        close_fds=True,
+    )
+    try:
+        proc.stdin.write(password)
+        del password
+        proc.stdin.close()
+        readable = [sys.stdin, proc.stdout, proc.stderr]
+        next_check = time.time() + 2
+        diagnostics = ""
+        while proc.poll() is None:
+            descriptors = select.select(readable, [], [], 0.5)[0]
+            for stream in descriptors:
+                data = os.read(stream.fileno(), 4096)
+                if stream is sys.stdin or not data:
+                    if stream is proc.stderr and not data:
+                        readable.remove(stream)
+                        continue
+                    return 0 if stream is sys.stdin else 1
+                if stream is proc.stdout:
+                    sys.stdout.write(data)
+                    sys.stdout.flush()
+                else:
+                    lines = (diagnostics + data).split("\n")
+                    diagnostics = lines.pop()
+                    for line in lines:
+                        if line.startswith("listening on "):
+                            send_record("packet-ready")
+                        elif not line.startswith("tcpdump: verbose output suppressed"):
+                            sys.stderr.write(line + "\n")
+                            sys.stderr.flush()
+            if time.time() >= next_check:
+                check_vm_route()
+                next_check = time.time() + 2
+        return proc.returncode
+    finally:
+        if proc.poll() is None:
+            try:
+                os.kill(proc.pid, signal.SIGTERM)
+            except OSError:
+                pass
+        proc.stdout.close()
+        proc.stderr.close()
+
+
+def all_digits(fields):
+    for field in fields:
+        if not field.isdigit() or int(field) > 255:
+            return False
+    return True
+
+
 def doctor():
     sys.stdout.write("Python %s | %s %s\n" % (
         sys.version.split()[0], os.uname()[2], os.uname()[4],
@@ -368,6 +440,15 @@ def doctor():
 
 
 def main():
+    if sys.argv[1:] == ["packet-bridge"]:
+        try:
+            return packet_bridge()
+        except (IOError, OSError, ValueError, KeyError):
+            error = sys.exc_info()[1]
+            if getattr(error, "errno", None) != 32:
+                sys.stderr.write("VM packet monitor: %s\n" % error)
+                return 1
+            return 0
     if sys.argv[1:] == ["doctor"]:
         return doctor()
     if sys.argv[1:] == ["bridge"]:

@@ -26,6 +26,17 @@ O painel mostra eventos e métricas **da VM**. Use `--source auth` para focar em
 
 O estado estatístico do laboratório é mantido por endereço da VM, separado do monitor local. Os registros das sessões identificam a origem em `extra.lab_host`.
 
+### Monitoramento passivo de TCP
+
+No Kali, ative o coletor de pacotes da VM quando quiser observar tentativas de conexão TCP, inclusive quando `/var/log` estiver parado:
+
+```sh
+# Mostre tentativas TCP do Kali para a VM na rede isolada.
+.venv/bin/vitaisk --lang pt watch --metasploitable --lab-packets --mode dashboard --view all
+```
+
+O monitor pede a senha para `sudo` na VM e usa o `tcpdump` que já está instalado nela. Ele produz eventos com os endereços e as portas dos pacotes SYN enviados do Kali para a VM. Doze portas de destino distintas em até dez segundos geram o alerta `tcp-syn-many-ports`. A opção acompanha apenas novas tentativas TCP desse par de endereços e independe da gravação em `/var/log`.
+
 ## Painel dentro da VM
 
 ### Pelo console do VirtualBox, sem SSH
